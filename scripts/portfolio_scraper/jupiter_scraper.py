@@ -38,14 +38,52 @@ class JupiterScraper:
         print(f"[Jupiter] Navigating to {url}...")
         self.driver.get(url)
         
+        # Check for captcha
+        print("[Jupiter] Checking for captcha...")
+        time.sleep(3)  # Give page time to load
+        
         try:
-            WebDriverWait(self.driver, 10).until(
+            # Look for captcha iframe
+            captcha_frames = self.driver.find_elements(By.CSS_SELECTOR, "iframe[src*='captcha'], iframe[title*='captcha']")
+            if captcha_frames:
+                print("[Jupiter] ⚠️  CAPTCHA DETECTED!")
+                print("[Jupiter] Please solve the captcha in the Chrome window...")
+                print("[Jupiter] Waiting up to 120 seconds for you to complete it...")
+                
+                # Wait longer for captcha to be solved
+                wait_time = 120
+                start_time = time.time()
+                
+                while time.time() - start_time < wait_time:
+                    try:
+                        # Check if portfolio elements are present (captcha solved)
+                        WebDriverWait(self.driver, 5).until(
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "details.platform-detail"))
+                        )
+                        print("[Jupiter] ✓ Captcha solved! Page loaded successfully")
+                        return True
+                    except TimeoutException:
+                        remaining = int(wait_time - (time.time() - start_time))
+                        if remaining > 0 and remaining % 10 == 0:
+                            print(f"[Jupiter]    Still waiting... {remaining}s remaining")
+                        time.sleep(2)
+                        continue
+                
+                print("[Jupiter] ✗ Captcha timeout - please solve faster next time")
+                return False
+        except Exception as e:
+            print(f"[Jupiter] Captcha check error: {e}")
+        
+        # Normal page load (no captcha)
+        try:
+            WebDriverWait(self.driver, 30).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "details.platform-detail"))
             )
             print("[Jupiter] ✓ Page loaded")
             return True
         except TimeoutException:
             print("[Jupiter] ✗ Page load timeout")
+            print("[Jupiter] Tip: Make sure you solved any captcha in the Chrome window")
             return False
     
     def parse_numeric_value(self, text):
