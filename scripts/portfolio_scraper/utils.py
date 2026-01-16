@@ -12,7 +12,7 @@ def is_solana_address(address):
 
 
 def is_evm_address(address):
-    """Check if address is EVM format (0x + 40 hex chars)"""
+    """Check if address is EV format (0x + 40 hex chars)"""
     return address.startswith('0x') and len(address) == 42
 
 

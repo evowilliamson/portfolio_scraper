@@ -37,6 +37,7 @@ def get_chrome_binary():
 
 def copy_profile_data(source_profile, dest_dir):
     """Copy essential profile data to debug directory"""
+    # Important files/folders to copy for maintaining session
     items_to_copy = [
         'Cookies',
         'Local Storage',
@@ -105,8 +106,10 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
     
     print(f"✓ Found Chrome: {chrome_binary}")
     
+    # Use a SEPARATE debug directory (not the main Chrome profile)
     debug_data_dir = os.path.expanduser('~/.chrome_debug_profile')
     
+    # Copy profile data if requested
     if copy_profile:
         main_chrome_dir = os.path.expanduser('~/.config/google-chrome')
         source_profile = os.path.join(main_chrome_dir, chrome_profile)
@@ -128,6 +131,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
     
     print(f"✓ Using debug directory: {debug_data_dir}")
     
+    # Chrome command with SEPARATE user-data-dir
     chrome_cmd = [
         chrome_binary,
         f'--remote-debugging-port={debug_port}',
@@ -145,11 +149,13 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
     print("\n🔧 Starting Chrome process...")
     print(f"   Command: {chrome_cmd[0]} (+ {len(chrome_cmd)-1} flags)")
     
+    # Create log file for Chrome output
     log_dir = os.path.expanduser('~/chrome_debug_logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, 'chrome_debug.log')
     
     try:
+        # Open log file for Chrome stdout/stderr
         with open(log_file, 'w') as log:
             chrome_process = subprocess.Popen(
                 chrome_cmd,
@@ -162,10 +168,12 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
         print(f"   Chrome process started (PID: {chrome_process.pid})")
         print(f"   Logs: {log_file}")
         
+        # Wait for Chrome to be ready
         print(f"\n⏳ Waiting for debug port {debug_port}...")
         start_time = time.time()
         
         while time.time() - start_time < startup_timeout:
+            # Check if process died
             if chrome_process.poll() is not None:
                 print(f"\n❌ Chrome process died! Exit code: {chrome_process.returncode}")
                 print(f"\n📋 Last 50 lines of Chrome log:")
@@ -178,12 +186,15 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
                     print(f"   Could not read log: {e}")
                 return False
             
+            # Check if debug port is accessible
             if check_chrome_debug_port(debug_port):
                 elapsed = time.time() - start_time
                 print(f"   ✓ Debug port accessible after {elapsed:.1f}s")
                 
+                # Give Chrome a moment to fully initialize
                 time.sleep(1)
                 
+                # Test Selenium connection
                 print("\n🧪 Testing Selenium connection...")
                 if test_selenium_connection(debug_port):
                     print("   ✓ Selenium can connect to Chrome!")
@@ -197,6 +208,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
             
             time.sleep(0.5)
         
+        # Timeout
         print(f"\n❌ Timeout waiting for Chrome after {startup_timeout}s")
         return False
         

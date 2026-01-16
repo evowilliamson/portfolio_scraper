@@ -12,7 +12,8 @@ from .config import (
     CHROME_PROFILE,
     FLASK_PORT,
     FLASK_HOST,
-    OUTPUT_DIR
+    OUTPUT_DIR,
+    NGROK_AUTHTOKEN
 )
 
 from .utils import (
@@ -26,17 +27,28 @@ from .jupiter_scraper import JupiterScraper
 from .debank_scraper import DebankScraper
 from .chrome_manager import start_chrome_with_debug, cleanup_chrome
 from .scheduler import PortfolioScheduler
+from .flask_app import create_app, run_app
 
 __version__ = '1.0.0'
 __all__ = [
     'SOLANA_ADDRESSES',
     'EVM_ADDRESSES',
     'SCRAPE_INTERVAL_MINUTES',
+    'CHROME_DEBUG_PORT',
+    'CHROME_PROFILE',
+    'FLASK_PORT',
+    'FLASK_HOST',
+    'OUTPUT_DIR',
+    'NGROK_AUTHTOKEN',
     'is_solana_address',
     'is_evm_address',
+    'check_chrome_debug_port',
+    'kill_all_chrome_processes',
     'JupiterScraper',
     'DebankScraper',
     'PortfolioScheduler',
     'start_chrome_with_debug',
-    'cleanup_chrome'
+    'cleanup_chrome',
+    'create_app',
+    'run_app'
 ]
