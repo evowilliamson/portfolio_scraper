@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Unified Portfolio Flask API - Solana (Jupiter) & EVM (DeBank)
+Unified Portfolio Flask API - Solana (Jupiter) & EVM (Rabby)
 
-Flask API that scrapes portfolio data from both Jupiter and DeBank.
+Flask API that scrapes portfolio data from both Jupiter and Rabby.
 
 Usage:
     1. Run this Flask app:

@@ -1,35 +1,53 @@
 """
-Jupiter (Solana) Portfolio Scraper
+Jupiter (Solana) Portfolio Scraper with Anti-Detection
 """
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
+import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import time
+import os
 from datetime import datetime
 
 
 class JupiterScraper:
-    """Scraper for Jupiter (Solana) portfolio"""
+    """Scraper for Jupiter (Solana) portfolio with anti-bot detection"""
     
-    def __init__(self, debug_port=9222):
+    def __init__(self, debug_port=9222, user_data_dir=None):
         self.debug_port = debug_port
+        self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_jupiter_scraper')
         self.driver = None
         
     def connect_to_chrome(self):
-        """Connect to existing Chrome debugging session"""
-        print(f"[Jupiter] Connecting to Chrome on debug port {self.debug_port}...")
-        chrome_options = Options()
-        chrome_options.add_experimental_option("debuggerAddress", f"127.0.0.1:{self.debug_port}")
+        """Start Chrome with undetected-chromedriver for anti-detection"""
+        print(f"[Jupiter] Starting Chrome with anti-detection...")
+        print(f"[Jupiter] Profile directory: {self.user_data_dir}")
         
         try:
-            self.driver = webdriver.Chrome(options=chrome_options)
-            print(f"[Jupiter] ✓ Connected successfully")
+            # undetected-chromedriver options
+            options = uc.ChromeOptions()
+            options.add_argument(f'--user-data-dir={self.user_data_dir}')
+            options.add_argument('--no-first-run')
+            options.add_argument('--no-default-browser-check')
+            options.add_argument('--disable-blink-features=AutomationControlled')
+            
+            # Start Chrome with anti-detection
+            # Force ChromeDriver version 142 to match installed Chrome
+            self.driver = uc.Chrome(
+                options=options,
+                version_main=142,  # Match Chrome 142.x
+                use_subprocess=True
+            )
+            
+            print(f"[Jupiter] ✓ Chrome started with anti-detection")
+            print(f"[Jupiter] ℹ Profile persists at: {self.user_data_dir}")
+            print(f"[Jupiter] ℹ You can manually configure wallet extensions in this Chrome")
             return True
         except Exception as e:
-            print(f"[Jupiter] ✗ Failed to connect: {e}")
+            print(f"[Jupiter] ✗ Failed to start Chrome: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def navigate_to_portfolio(self, wallet_address):

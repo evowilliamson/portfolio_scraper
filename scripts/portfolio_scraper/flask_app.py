@@ -17,19 +17,19 @@ from .config import (
 )
 from .chrome_manager import start_chrome_with_debug, cleanup_chrome
 from .scheduler import PortfolioScheduler
-from .utils import is_solana_address
+from .utils import is_solana_address, check_chrome_debug_port
 
 
 def create_app():
     """Create and configure Flask app"""
     app = Flask(__name__)
     
-    # Global scheduler instance
-    scheduler = None
-    
     @app.route('/portfolio', methods=['GET'])
     def get_portfolio():
         """Get cached portfolio data for a wallet address"""
+        from flask import current_app
+        scheduler = current_app.scheduler
+        
         wallet_address = request.args.get('address')
         
         if not wallet_address:
@@ -66,6 +66,9 @@ def create_app():
     @app.route('/health', methods=['GET'])
     def health():
         """Health check endpoint"""
+        from flask import current_app
+        scheduler = current_app.scheduler
+        
         status = scheduler.get_status()
         status['status'] = 'ok'
         return jsonify(status), 200
@@ -73,11 +76,11 @@ def create_app():
     @app.route('/refresh', methods=['POST'])
     def refresh():
         """Manually trigger a refresh"""
+        from flask import current_app
+        scheduler = current_app.scheduler
+        
         scheduler.scrape_and_cache()
         return jsonify({"message": "Refresh triggered"}), 200
-    
-    # Store scheduler reference for access in route handlers
-    app.scheduler = None
     
     return app
 
@@ -123,24 +126,21 @@ def run_app():
     print("   UNIFIED PORTFOLIO SCRAPER API - SOLANA & EVM")
     print("="*70)
     
-    # Register cleanup handler
-    atexit.register(cleanup_chrome)
+    # ===========================================================================
+    # AUTOMATIC MODE: Each scraper starts its own Chrome
+    # ===========================================================================
+    # Jupiter scraper → starts Chrome with undetected-chromedriver
+    # Rabby scraper   → starts Chrome with undetected-chromedriver
+    #
+    # No manual Chrome startup needed!
+    # Profiles persist at:
+    #   - ~/.chrome_jupiter_scraper (for Solana/Jupiter)
+    #   - ~/.chrome_rabby_scraper (for EVM/Rabby)
+    # ===========================================================================
     
-    # Start Chrome with debugging
-    if not start_chrome_with_debug(
-        debug_port=CHROME_DEBUG_PORT,
-        chrome_profile=CHROME_PROFILE,
-        copy_profile=True
-    ):
-        print("\n" + "="*70)
-        print("❌ CHROME STARTUP FAILED")
-        print("="*70)
-        print("\nThe Chrome startup process failed.")
-        print("Check the logs above for details.")
-        print("="*70)
-        import sys
-        sys.exit(1)
-    
+    print("\n✓ Scrapers will start Chrome automatically with anti-detection")
+    print("  → Jupiter: ~/.chrome_jupiter_scraper")
+    print("  → Rabby:   ~/.chrome_rabby_scraper")
     print()
     
     # Set up ngrok
@@ -157,14 +157,8 @@ def run_app():
         chrome_debug_port=CHROME_DEBUG_PORT
     )
     
-    # Store scheduler in app context for route handlers
+    # Store scheduler in app for route handlers to access
     app.scheduler = scheduler
-    
-    # Monkey-patch the route handlers to access the scheduler
-    # This is a workaround for the closure issue
-    import sys
-    current_module = sys.modules[__name__]
-    current_module.scheduler = scheduler
     
     scheduler.start()
     

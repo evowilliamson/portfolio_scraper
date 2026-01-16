@@ -24,7 +24,7 @@ from .utils import (
 )
 
 from .jupiter_scraper import JupiterScraper
-from .debank_scraper import DebankScraper
+from .rabby_scraper import RabbyScraper
 from .chrome_manager import start_chrome_with_debug, cleanup_chrome
 from .scheduler import PortfolioScheduler
 from .flask_app import create_app, run_app
@@ -45,7 +45,7 @@ __all__ = [
     'check_chrome_debug_port',
     'kill_all_chrome_processes',
     'JupiterScraper',
-    'DebankScraper',
+    'RabbyScraper',
     'PortfolioScheduler',
     'start_chrome_with_debug',
     'cleanup_chrome',

@@ -45,7 +45,13 @@ def copy_profile_data(source_profile, dest_dir):
         'Local Extension Settings',
         'Preferences',
         'Extensions',
+        'Extension State',
+        'Extension Rules',
+        'Sync Extension Settings',
     ]
+    
+    print(f"   📋 Copying profile data from: {source_profile}")
+    print(f"   📋 Copying profile data to: {dest_dir}")
     
     copied_items = []
     for item in items_to_copy:
@@ -59,10 +65,15 @@ def copy_profile_data(source_profile, dest_dir):
                         shutil.rmtree(dst)
                     shutil.copytree(src, dst)
                 else:
+                    if os.path.exists(dst):
+                        os.remove(dst)
                     shutil.copy2(src, dst)
                 copied_items.append(item)
+                print(f"      ✓ Copied: {item}")
             except Exception as e:
-                print(f"   Warning: Could not copy {item}: {e}")
+                print(f"      ⚠️  Warning: Could not copy {item}: {e}")
+        else:
+            print(f"      ⚠️  Not found: {item}")
     
     return copied_items
 
@@ -86,7 +97,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
     
     Args:
         debug_port: Port for remote debugging
-        chrome_profile: Chrome profile name to copy from
+        chrome_profile: Chrome profile name to copy from (e.g., 'Profile 4')
         copy_profile: If True, copy profile data to debug directory
         startup_timeout: Maximum seconds to wait for Chrome startup
         headless: If True, run in headless mode (won't work with captchas!)
@@ -113,22 +124,47 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
         main_chrome_dir = os.path.expanduser('~/.config/google-chrome')
         source_profile = os.path.join(main_chrome_dir, chrome_profile)
         
+        print(f"\n📂 Profile Configuration:")
+        print(f"   Source: {source_profile}")
+        print(f"   Destination: {debug_data_dir}")
+        
         if os.path.exists(source_profile):
-            print(f"📋 Copying profile data from: {chrome_profile}")
+            print(f"\n   ✓ Source profile exists")
+            
+            # Clean destination directory for fresh copy
+            if os.path.exists(debug_data_dir):
+                print(f"   🗑️  Removing old debug profile...")
+                try:
+                    shutil.rmtree(debug_data_dir)
+                    print(f"      ✓ Old profile removed")
+                except Exception as e:
+                    print(f"      ⚠️  Warning: Could not remove old profile: {e}")
+            
+            # Create fresh destination
             os.makedirs(debug_data_dir, exist_ok=True)
             
+            # Copy profile data
             copied = copy_profile_data(source_profile, debug_data_dir)
             if copied:
-                print(f"   ✓ Copied: {', '.join(copied)}")
+                print(f"\n   ✓ Profile copied successfully ({len(copied)} items)")
             else:
                 print("   ⚠️  No profile data copied (starting fresh)")
         else:
-            print(f"⚠️  Source profile not found: {source_profile}")
+            print(f"\n   ❌ Source profile not found: {source_profile}")
+            print("      Available profiles:")
+            try:
+                profiles = [d for d in os.listdir(main_chrome_dir) if d.startswith('Profile') or d == 'Default']
+                for p in profiles:
+                    print(f"         - {p}")
+            except:
+                pass
             print("   Starting with fresh profile")
+            os.makedirs(debug_data_dir, exist_ok=True)
     else:
         print("🆕 Starting with fresh profile (no data copied)")
+        os.makedirs(debug_data_dir, exist_ok=True)
     
-    print(f"✓ Using debug directory: {debug_data_dir}")
+    print(f"\n✓ Using debug directory: {debug_data_dir}")
     
     chrome_cmd = [
         chrome_binary,
@@ -175,7 +211,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
             print("⚠️  IMPORTANT: CAPTCHA SOLVING")
             print("="*70)
             print("A Chrome window should appear shortly.")
-            print("When you see a captcha on Jupiter.ag:")
+            print("When you see a captcha on Jupiter.ag or Rabby:")
             print("  1. Click the captcha checkbox")
             print("  2. Complete any image challenges")
             print("  3. Wait for the page to fully load")
@@ -214,6 +250,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
                     if not headless:
                         print("\n💡 TIP: Leave the Chrome window open while the scraper runs.")
                         print("    You may need to solve captchas periodically.")
+                        print("    Your Rabby extension should be available in the browser.")
                     
                     return True
                 else:

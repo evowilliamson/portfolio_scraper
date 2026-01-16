@@ -7,7 +7,7 @@ import time
 import atexit
 from datetime import datetime
 from .jupiter_scraper import JupiterScraper
-from .debank_scraper import DebankScraper
+from .rabby_scraper import RabbyScraper
 from .utils import is_solana_address
 from .config import OUTPUT_DIR
 
@@ -24,6 +24,7 @@ class PortfolioScheduler:
         self.cached_portfolio_data = {}
         self.last_update_time = None
         self.jupiter_scraper = None
+        self.rabby_scraper = None
         self.scheduler = None
     
     def get_jupiter_scraper(self):
@@ -33,6 +34,14 @@ class PortfolioScheduler:
             if not self.jupiter_scraper.connect_to_chrome():
                 return None
         return self.jupiter_scraper
+    
+    def get_rabby_scraper(self):
+        """Get or create Rabby scraper instance"""
+        if self.rabby_scraper is None:
+            self.rabby_scraper = RabbyScraper(debug_port=self.chrome_debug_port)
+            if not self.rabby_scraper.connect_to_chrome():
+                return None
+        return self.rabby_scraper
     
     def scrape_and_cache(self):
         """Background task: Scrape all configured wallets and cache results"""
@@ -61,35 +70,28 @@ class PortfolioScheduler:
                     else:
                         print(f"      ✗ Scraping failed")
         
-        # Scrape EVM addresses
-        for idx, wallet_address in enumerate(self.evm_addresses, 1):
-            print(f"\n   [{idx}/{len(self.evm_addresses)}] Scraping EVM wallet: {wallet_address[:8]}...{wallet_address[-8:]}")
-            
-            # Retry mechanism for EVM scraping (timing issues)
-            max_retries = 2
-            retry_count = 0
-            portfolio_data = None
-            
-            while retry_count <= max_retries and portfolio_data is None:
-                if retry_count > 0:
-                    print(f"      ⟳ Retry attempt {retry_count}/{max_retries}...")
-                    time.sleep(3)  # Wait before retry
-                
-                debank = DebankScraper()
-                portfolio_data = debank.scrape_portfolio(wallet_address)
-                retry_count += 1
-            
-            if portfolio_data:
-                self.cached_portfolio_data[wallet_address] = portfolio_data
-                output_file = f"{OUTPUT_DIR}/evm_portfolio_{wallet_address[:8]}.json"
-                with open(output_file, "w", encoding="utf-8") as f:
-                    json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
-                
-                projects_count = len(portfolio_data.get('projects', []))
-                print(f"      ✓ Scraped successfully - {projects_count} projects")
-                success_count += 1
+        # Scrape EVM addresses using Rabby
+        if self.evm_addresses:
+            rabby = self.get_rabby_scraper()
+            if rabby:
+                for idx, wallet_address in enumerate(self.evm_addresses, 1):
+                    print(f"\n   [{idx}/{len(self.evm_addresses)}] Scraping EVM wallet: {wallet_address[:8]}...{wallet_address[-8:]}")
+                    
+                    portfolio_data = rabby.scrape_portfolio(wallet_address)
+                    
+                    if portfolio_data:
+                        self.cached_portfolio_data[wallet_address] = portfolio_data
+                        output_file = f"{OUTPUT_DIR}/evm_portfolio_{wallet_address[:8]}.json"
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
+                        
+                        projects_count = len(portfolio_data.get('projects', []))
+                        print(f"      ✓ Scraped successfully - {projects_count} projects")
+                        success_count += 1
+                    else:
+                        print(f"      ✗ Scraping failed")
             else:
-                print(f"      ✗ Scraping failed after {max_retries} retries")
+                print(f"\n   ✗ Failed to initialize Rabby scraper")
         
         if success_count > 0:
             self.last_update_time = datetime.now()
