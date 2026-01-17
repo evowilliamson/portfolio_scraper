@@ -34,12 +34,14 @@ class RabbyScraper:
             options.add_argument('--no-first-run')
             options.add_argument('--no-default-browser-check')
             options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             
             # Start Chrome with anti-detection
+            # Let undetected-chromedriver auto-detect Chrome version
             self.driver = uc.Chrome(
                 options=options,
-                version_main=144,  # Match Chrome 144.x
-                use_subprocess=True
+                use_subprocess=False  # Avoid port conflicts
             )
             
             print(f"[Rabby] ✓ Chrome started with anti-detection")
@@ -417,7 +419,11 @@ class RabbyScraper:
             print(f"[Rabby]     Error scraping deposit section: {e}")
         
         return deposit_data
-    
+
+
+
+
+
     def scrape_yield_section(self, panel_elem):
         """Scrape Yield section"""
         yield_data = {
@@ -436,12 +442,11 @@ class RabbyScraper:
                 try:
                     cells = row.find_elements(By.XPATH, "./div")
                     
-                    # Yield sections can have 4 columns (identifier, pool, balance, usd_value)
+                    # Handle both 3-column and 4-column layouts
                     if len(cells) >= 4:
-                        # Extract identifier
+                        # 4 columns: identifier, pool, balance, usd_value
                         identifier = cells[0].text.strip()
                         
-                        # Extract pool name
                         pool = None
                         try:
                             pool_elem = cells[1].find_element(By.CSS_SELECTOR, "span.ml-2")
@@ -449,26 +454,44 @@ class RabbyScraper:
                         except NoSuchElementException:
                             pool = cells[1].text.strip().split('\n')[0]
                         
-                        # Extract balance (numeric value only)
                         balance_text = cells[2].text.strip().split('\n')[0]
                         balance_value = self.extract_balance_value(balance_text)
                         
-                        # Extract USD value (numeric only)
                         usd_text = cells[3].text.strip()
                         usd_value = self.parse_numeric_value(usd_text)
                         
-                        # Filter by minimum USD value
-                        if pool and balance_value and usd_value >= self.min_usd_value:
-                            asset_info = {
-                                "identifier": identifier,
-                                "pool": pool,
-                                "balance": balance_value,
-                                "usd_value": usd_value
-                            }
-                            yield_data["assets"].append(asset_info)
-                            print(f"[Rabby]       ✓ Parsed yield: {pool} - ${usd_value}")
-                        elif usd_value < self.min_usd_value:
-                            print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
+                    elif len(cells) >= 3:
+                        # 3 columns: pool, balance, usd_value (no identifier)
+                        identifier = ""  # No identifier in this layout
+                        
+                        pool = None
+                        try:
+                            pool_elem = cells[0].find_element(By.CSS_SELECTOR, "span.ml-2")
+                            pool = pool_elem.text.strip()
+                        except NoSuchElementException:
+                            pool = cells[0].text.strip().split('\n')[0]
+                        
+                        balance_text = cells[1].text.strip().split('\n')[0]
+                        balance_value = self.extract_balance_value(balance_text)
+                        
+                        usd_text = cells[2].text.strip()
+                        usd_value = self.parse_numeric_value(usd_text)
+                    else:
+                        # Not enough columns, skip
+                        continue
+                    
+                    # Filter by minimum USD value
+                    if pool and balance_value and usd_value >= self.min_usd_value:
+                        asset_info = {
+                            "identifier": identifier,
+                            "pool": pool,
+                            "balance": balance_value,
+                            "usd_value": usd_value
+                        }
+                        yield_data["assets"].append(asset_info)
+                        print(f"[Rabby]       ✓ Parsed yield: {pool} - ${usd_value}")
+                    elif usd_value < self.min_usd_value:
+                        print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
                 
                 except Exception as e:
                     print(f"[Rabby]       Warning: Failed to parse yield row: {e}")
@@ -478,7 +501,11 @@ class RabbyScraper:
             print(f"[Rabby]     Error scraping yield section: {e}")
         
         return yield_data
-    
+
+
+
+
+ 
     def scrape_staked_section(self, panel_elem):
         """Scrape Staked section (same structure as Yield)"""
         staked_data = {

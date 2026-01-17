@@ -38,13 +38,14 @@ class JupiterScraper:
             options.add_argument('--no-first-run')
             options.add_argument('--no-default-browser-check')
             options.add_argument('--disable-blink-features=AutomationControlled')
+            options.add_argument('--disable-dev-shm-usage')
+            options.add_argument('--disable-software-rasterizer')
             
             # Start Chrome with anti-detection
-            # Force ChromeDriver version 144 to match installed Chrome
+            # Let undetected-chromedriver auto-detect Chrome version
             self.driver = uc.Chrome(
                 options=options,
-                version_main=144,  # Match Chrome 144.x
-                use_subprocess=True
+                use_subprocess=False  # Avoid port conflicts
             )
             
             print(f"[Jupiter] ✓ Chrome started with anti-detection")
