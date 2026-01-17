@@ -146,6 +146,39 @@ class JupiterScraper:
         except (NoSuchElementException, ValueError):
             return 0
     
+    def scrape_wallet_section(self, section_elem):
+        """Scrape wallet section data (similar to farming but without yield column)"""
+        wallet_data = {
+            "section_type": "Wallet",
+            "assets": []
+        }
+        
+        try:
+            table = section_elem.find_element(By.CSS_SELECTOR, "table")
+            tbodies = table.find_elements(By.TAG_NAME, "tbody")
+            
+            if len(tbodies) > 0:
+                asset_rows = tbodies[0].find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+                
+                for row in asset_rows:
+                    try:
+                        cells = row.find_elements(By.TAG_NAME, "td")
+                        if len(cells) >= 4:
+                            # Extract token (column 0), balance (column 1), and value (column 3)
+                            # Skip column 2 (Price/24hΔ)
+                            asset_info = {
+                                "token": self.extract_token_info(cells[0]),
+                                "balance": self.extract_balance_and_token(cells[1].text.strip()),
+                                "value": self.parse_numeric_value(cells[3].text.strip())
+                            }
+                            wallet_data["assets"].append(asset_info)
+                    except Exception as e:
+                        print(f"[Jupiter] Warning: Failed to parse wallet asset row: {e}")
+        except Exception as e:
+            print(f"[Jupiter] Error scraping wallet section: {e}")
+        
+        return wallet_data
+    
     def scrape_farming_section(self, section_elem):
         """Scrape farming section data"""
         farming_data = {
@@ -273,10 +306,6 @@ class JupiterScraper:
                     project_name_elem = project_detail.find_element(By.CSS_SELECTOR, "summary p")
                     project_name = project_name_elem.text.strip()
                     
-                    if project_name.lower() == "holdings":
-                        print(f"[Jupiter] [{idx+1}] Skipping Holdings project")
-                        continue
-                    
                     print(f"[Jupiter] [{idx+1}] Processing: {project_name}")
                     
                     project_info = {
@@ -292,7 +321,10 @@ class JupiterScraper:
                             summary_elem = section.find_element(By.CSS_SELECTOR, "summary")
                             summary_text = summary_elem.text.lower()
                             
-                            if "farming" in summary_text:
+                            if "wallet" in summary_text:
+                                section_data = self.scrape_wallet_section(section)
+                                project_info["sections"].append(section_data)
+                            elif "farming" in summary_text:
                                 section_data = self.scrape_farming_section(section)
                                 project_info["sections"].append(section_data)
                             elif "lending" in summary_text:
@@ -339,3 +371,12 @@ class JupiterScraper:
             import traceback
             traceback.print_exc()
             return None
+    
+    def cleanup(self):
+        """Clean up resources"""
+        if self.driver:
+            try:
+                self.driver.quit()
+                print("[Jupiter] ✓ Driver cleaned up")
+            except:
+                pass

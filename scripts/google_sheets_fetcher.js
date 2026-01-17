@@ -15,6 +15,32 @@
  * 7. Run the functions or use the custom menu
  */
 
+/**
+ * Runs automatically when the spreadsheet is opened
+ */
+function onOpen() {
+  const ui = SpreadsheetApp.getUi();
+  ui.createMenu('Portfolio')
+    .addItem('Fetch Solana Portfolio', 'fetchSolanaPortfolio')
+    .addItem('Fetch EVM Portfolio', 'fetchEVMPortfolio')
+    .addToUi();
+}
+
+/**
+ * Unified Portfolio Fetcher for Google Sheets
+ * 
+ * This script fetches portfolio data from both Solana (Jupiter) and EVM (DeBank)
+ * 
+ * Setup:
+ * 1. Open your Google Sheet
+ * 2. Go to Extensions > Apps Script
+ * 3. Paste this code
+ * 4. Update the API_URL constant with your server URL
+ * 5. Create two sheets: "solana_portfolio" and "EVM_portfolio"
+ * 6. Put wallet addresses in cell B1 of each sheet
+ * 7. Run the functions or use the custom menu
+ */
+
 // Configuration
 const API_URL = "https://nondefensible-unbridled-zainab.ngrok-free.dev/portfolio";
 
@@ -51,7 +77,6 @@ function fetchSolanaPortfolio() {
       return;
     }
     
-    // To this:
     let trimmedAddress = walletAddress.toString().trim();
     // Normalize EVM addresses to lowercase
     if (trimmedAddress.startsWith('0x')) {
@@ -151,9 +176,29 @@ function fetchSolanaPortfolio() {
       
       for (const section of project.sections) {
         const sectionType = section.section_type;
+        Logger.log(`    Processing section type: ${sectionType}`);
         
-        if (sectionType === "Farming") {
+        // Handle Wallet section (Holdings)
+        if (sectionType === "Wallet") {
           if (section.assets) {
+            Logger.log(`      Found ${section.assets.length} wallet assets`);
+            for (const asset of section.assets) {
+              dataRows.push([
+                projectName,
+                sectionType,
+                "Holdings",
+                asset.token,
+                asset.balance,
+                "", // No yield for wallet holdings
+                asset.value
+              ]);
+            }
+          }
+        }
+        // Handle Farming section
+        else if (sectionType === "Farming") {
+          if (section.assets) {
+            Logger.log(`      Found ${section.assets.length} farming assets`);
             for (const asset of section.assets) {
               dataRows.push([
                 projectName,
@@ -161,15 +206,18 @@ function fetchSolanaPortfolio() {
                 "Farming",
                 asset.token,
                 asset.balance,
-                asset.yield,
+                asset.yield || "",
                 asset.value
               ]);
             }
           }
-        } else if (sectionType === "Lending") {
+        }
+        // Handle Lending section
+        else if (sectionType === "Lending") {
           const marketName = section.market_name || "Unknown Market";
           
           if (section.supplied) {
+            Logger.log(`      Found ${section.supplied.length} supplied assets`);
             for (const asset of section.supplied) {
               dataRows.push([
                 projectName,
@@ -177,13 +225,14 @@ function fetchSolanaPortfolio() {
                 `${marketName} (Supplied)`,
                 asset.token,
                 asset.balance,
-                asset.yield,
+                asset.yield || "",
                 asset.value
               ]);
             }
           }
           
           if (section.borrowed) {
+            Logger.log(`      Found ${section.borrowed.length} borrowed assets`);
             for (const asset of section.borrowed) {
               dataRows.push([
                 projectName,
@@ -191,7 +240,7 @@ function fetchSolanaPortfolio() {
                 `${marketName} (Borrowed)`,
                 asset.token,
                 asset.balance,
-                asset.yield,
+                asset.yield || "",
                 asset.value
               ]);
             }

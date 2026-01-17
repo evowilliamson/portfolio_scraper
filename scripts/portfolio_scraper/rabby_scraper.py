@@ -18,6 +18,7 @@ class RabbyScraper:
         self.driver = None
         self.debug_port = debug_port  # Not used anymore, kept for compatibility
         self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_rabby_scraper')
+        self.min_usd_value = 5  # Minimum USD value threshold
     
     def connect_to_chrome(self):
         """Start Chrome with undetected-chromedriver for anti-detection"""
@@ -242,7 +243,8 @@ class RabbyScraper:
                                 usd_text = cells[2].text.strip()
                                 usd_value = self.parse_numeric_value(usd_text)
                                 
-                                if token and balance_value:
+                                # Filter by minimum USD value
+                                if token and balance_value and usd_value >= self.min_usd_value:
                                     asset_info = {
                                         "token": token,
                                         "balance": balance_value,
@@ -255,6 +257,8 @@ class RabbyScraper:
                                     elif "borrowed" in header_text:
                                         lending_data["borrowed"].append(asset_info)
                                         print(f"[Rabby]         ✓ Borrowed: {token} - ${usd_value}")
+                                elif usd_value < self.min_usd_value:
+                                    print(f"[Rabby]         ⊘ Skipped (< ${self.min_usd_value}): {token} - ${usd_value}")
                         
                         except Exception as e:
                             print(f"[Rabby]         Warning: Failed to parse row: {e}")
@@ -303,7 +307,8 @@ class RabbyScraper:
                         usd_text = cells[2].text.strip()
                         usd_value = self.parse_numeric_value(usd_text)
                         
-                        if pool and balance_value:
+                        # Filter by minimum USD value
+                        if pool and balance_value and usd_value >= self.min_usd_value:
                             asset_info = {
                                 "pool": pool,
                                 "balance": balance_value,
@@ -311,6 +316,8 @@ class RabbyScraper:
                             }
                             deposit_data["assets"].append(asset_info)
                             print(f"[Rabby]       ✓ Parsed deposit: {pool} - ${usd_value}")
+                        elif usd_value < self.min_usd_value:
+                            print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
                 
                 except Exception as e:
                     print(f"[Rabby]       Warning: Failed to parse deposit row: {e}")
@@ -360,7 +367,8 @@ class RabbyScraper:
                         usd_text = cells[3].text.strip()
                         usd_value = self.parse_numeric_value(usd_text)
                         
-                        if pool and balance_value:
+                        # Filter by minimum USD value
+                        if pool and balance_value and usd_value >= self.min_usd_value:
                             asset_info = {
                                 "identifier": identifier,
                                 "pool": pool,
@@ -369,6 +377,8 @@ class RabbyScraper:
                             }
                             yield_data["assets"].append(asset_info)
                             print(f"[Rabby]       ✓ Parsed yield: {pool} - ${usd_value}")
+                        elif usd_value < self.min_usd_value:
+                            print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
                 
                 except Exception as e:
                     print(f"[Rabby]       Warning: Failed to parse yield row: {e}")
@@ -379,9 +389,131 @@ class RabbyScraper:
         
         return yield_data
     
+    def scrape_staked_section(self, panel_elem):
+        """Scrape Staked section (same structure as Yield)"""
+        staked_data = {
+            "section_type": "Staked",
+            "assets": []
+        }
+        
+        try:
+            # Find content section
+            content_div = panel_elem.find_element(By.CSS_SELECTOR, "div.rabby-Content-rabby--fixjhz")
+            rows = content_div.find_elements(By.CSS_SELECTOR, "div.rabby-ContentRow-rabby--e2twba")
+            
+            print(f"[Rabby]       Found {len(rows)} staked rows")
+            
+            for row in rows:
+                try:
+                    cells = row.find_elements(By.XPATH, "./div")
+                    
+                    # Staked sections have 4 columns (identifier, pool, balance, usd_value)
+                    if len(cells) >= 4:
+                        # Extract identifier
+                        identifier = cells[0].text.strip()
+                        
+                        # Extract pool name
+                        pool = None
+                        try:
+                            pool_elem = cells[1].find_element(By.CSS_SELECTOR, "span.ml-2")
+                            pool = pool_elem.text.strip()
+                        except NoSuchElementException:
+                            pool = cells[1].text.strip().split('\n')[0]
+                        
+                        # Extract balance (numeric value only)
+                        balance_text = cells[2].text.strip().split('\n')[0]
+                        balance_value = self.extract_balance_value(balance_text)
+                        
+                        # Extract USD value (numeric only)
+                        usd_text = cells[3].text.strip()
+                        usd_value = self.parse_numeric_value(usd_text)
+                        
+                        # Filter by minimum USD value
+                        if pool and balance_value and usd_value >= self.min_usd_value:
+                            asset_info = {
+                                "identifier": identifier,
+                                "pool": pool,
+                                "balance": balance_value,
+                                "usd_value": usd_value
+                            }
+                            staked_data["assets"].append(asset_info)
+                            print(f"[Rabby]       ✓ Parsed staked: {pool} - ${usd_value}")
+                        elif usd_value < self.min_usd_value:
+                            print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
+                
+                except Exception as e:
+                    print(f"[Rabby]       Warning: Failed to parse staked row: {e}")
+                    continue
+        
+        except Exception as e:
+            print(f"[Rabby]     Error scraping staked section: {e}")
+        
+        return staked_data
+    
+    def scrape_locked_section(self, panel_elem):
+        """Scrape Locked section (Pool, Balance, USD Value - ignoring Unlock time)"""
+        locked_data = {
+            "section_type": "Locked",
+            "assets": []
+        }
+        
+        try:
+            # Find content section
+            content_div = panel_elem.find_element(By.CSS_SELECTOR, "div.rabby-Content-rabby--fixjhz")
+            rows = content_div.find_elements(By.CSS_SELECTOR, "div.rabby-ContentRow-rabby--e2twba")
+            
+            print(f"[Rabby]       Found {len(rows)} locked rows")
+            
+            for row in rows:
+                try:
+                    cells = row.find_elements(By.XPATH, "./div")
+                    
+                    # Locked sections have 4 columns (pool, balance, unlock_time, usd_value)
+                    # We skip unlock_time (index 2)
+                    if len(cells) >= 4:
+                        # Extract pool name
+                        pool = None
+                        try:
+                            pool_elem = cells[0].find_element(By.CSS_SELECTOR, "span.ml-2")
+                            pool = pool_elem.text.strip()
+                        except NoSuchElementException:
+                            pool = cells[0].text.strip().split('\n')[0]
+                        
+                        # Extract balance (numeric value only)
+                        balance_text = cells[1].text.strip().split('\n')[0]
+                        balance_value = self.extract_balance_value(balance_text)
+                        
+                        # Skip unlock_time at cells[2]
+                        
+                        # Extract USD value (numeric only) from cells[3]
+                        usd_text = cells[3].text.strip()
+                        usd_value = self.parse_numeric_value(usd_text)
+                        
+                        # Filter by minimum USD value
+                        if pool and balance_value and usd_value >= self.min_usd_value:
+                            asset_info = {
+                                "pool": pool,
+                                "balance": balance_value,
+                                "usd_value": usd_value
+                            }
+                            locked_data["assets"].append(asset_info)
+                            print(f"[Rabby]       ✓ Parsed locked: {pool} - ${usd_value}")
+                        elif usd_value < self.min_usd_value:
+                            print(f"[Rabby]       ⊘ Skipped (< ${self.min_usd_value}): {pool} - ${usd_value}")
+                
+                except Exception as e:
+                    print(f"[Rabby]       Warning: Failed to parse locked row: {e}")
+                    continue
+        
+        except Exception as e:
+            print(f"[Rabby]     Error scraping locked section: {e}")
+        
+        return locked_data
+    
     def scrape_current_portfolio(self, wallet_address):
         """Scrape portfolio for currently loaded wallet"""
         print(f"\n[Rabby] Scraping portfolio for {wallet_address[:10]}...{wallet_address[-6:]}")
+        print(f"[Rabby] Filtering assets with USD value >= ${self.min_usd_value}")
         
         try:
             # Find all projects
@@ -428,6 +560,12 @@ class RabbyScraper:
                                     project_data["sections"].append(section_data)
                                 elif section_type == "Deposit":
                                     section_data = self.scrape_deposit_section(panel)
+                                    project_data["sections"].append(section_data)
+                                elif section_type == "Staked":
+                                    section_data = self.scrape_staked_section(panel)
+                                    project_data["sections"].append(section_data)
+                                elif section_type == "Locked":
+                                    section_data = self.scrape_locked_section(panel)
                                     project_data["sections"].append(section_data)
                                 else:
                                     print(f"[Rabby]     Skipping unknown section type: {section_type}")
@@ -535,7 +673,7 @@ class RabbyScraper:
             import traceback
             traceback.print_exc()
             return None
-    
+
     def cleanup(self):
         """Clean up resources"""
         if self.driver:
