@@ -205,6 +205,43 @@ function fetchSolanaPortfolio() {
             }
           }
         }
+
+        else if (sectionType === "Leverage") {
+          const marketName = section.market_name || "Unknown Market";
+          
+          // Process supplied assets
+          if (section.supplied) {
+            Logger.log(`      Found ${section.supplied.length} leverage supplied assets`);
+            for (const asset of section.supplied) {
+              dataRows.push([
+                projectName,
+                sectionType,
+                `${marketName} (Supplied)`,
+                asset.token,
+                asset.balance,
+                asset.yield || "",
+                asset.value
+              ]);
+            }
+          }
+          
+          // Process borrowed assets
+          if (section.borrowed) {
+            Logger.log(`      Found ${section.borrowed.length} leverage borrowed assets`);
+            for (const asset of section.borrowed) {
+              dataRows.push([
+                projectName,
+                sectionType,
+                `${marketName} (Borrowed)`,
+                asset.token,
+                asset.balance,
+                asset.yield || "",
+                asset.value
+              ]);
+            }
+          }
+        }
+
         // Handle Lending section
         else if (sectionType === "Lending") {
           const marketName = section.market_name || "Unknown Market";

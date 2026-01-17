@@ -35,6 +35,54 @@ def _parse_lending_rows(rows, target_list, balance_idx=1, yield_idx=3, value_idx
             print(f"[Jupiter] Warning: Failed to parse lending row: {e}")
 
 
+def _scrape_lending_like_section(section_elem, section_type, market_name):
+    """Generic scraper for Lending and Leverage sections (same structure).
+    
+    Args:
+        section_elem: Selenium element containing the section
+        section_type: "Lending" or "Leverage"
+        market_name: Name of the market/protocol
+    
+    Returns:
+        dict with section_type, market_name, supplied, and borrowed lists
+    """
+    section_data = {
+        "section_type": section_type,
+        "market_name": market_name,
+        "supplied": [],
+        "borrowed": []
+    }
+
+    try:
+        table = section_elem.find_element(By.CSS_SELECTOR, "table")
+        theads = table.find_elements(By.TAG_NAME, "thead")
+        tbodies = table.find_elements(By.TAG_NAME, "tbody")
+
+        tbody_index = 0
+
+        for thead in theads:
+            thead_text = thead.text.lower()
+
+            if "supplied" in thead_text:
+                if tbody_index < len(tbodies):
+                    tbody = tbodies[tbody_index]
+                    rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+
+                    _parse_lending_rows(rows, section_data["supplied"])
+                    tbody_index += 1
+
+            elif "borrowed" in thead_text:
+                if tbody_index < len(tbodies):
+                    tbody = tbodies[tbody_index]
+                    rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+                    _parse_lending_rows(rows, section_data["borrowed"])
+                    tbody_index += 1
+    except Exception as e:
+        print(f"[Jupiter] Error scraping {section_type.lower()} section: {e}")
+
+    return section_data
+
+
 def scrape_wallet_section(section_elem):
     """Scrape wallet section data (similar to farming but without yield column)."""
     wallet_data = {
@@ -110,38 +158,9 @@ def scrape_farming_section(section_elem):
 
 def scrape_lending_section(section_elem, market_name):
     """Scrape lending section data."""
-    lending_data = {
-        "section_type": "Lending",
-        "market_name": market_name,
-        "supplied": [],
-        "borrowed": []
-    }
+    return _scrape_lending_like_section(section_elem, "Lending", market_name)
 
-    try:
-        table = section_elem.find_element(By.CSS_SELECTOR, "table")
-        theads = table.find_elements(By.TAG_NAME, "thead")
-        tbodies = table.find_elements(By.TAG_NAME, "tbody")
 
-        tbody_index = 0
-
-        for thead in theads:
-            thead_text = thead.text.lower()
-
-            if "supplied" in thead_text:
-                if tbody_index < len(tbodies):
-                    tbody = tbodies[tbody_index]
-                    rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-
-                    _parse_lending_rows(rows, lending_data["supplied"])
-                    tbody_index += 1
-
-            elif "borrowed" in thead_text:
-                if tbody_index < len(tbodies):
-                    tbody = tbodies[tbody_index]
-                    rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-                    _parse_lending_rows(rows, lending_data["borrowed"])
-                    tbody_index += 1
-    except Exception as e:
-        print(f"[Jupiter] Error scraping lending section: {e}")
-
-    return lending_data
+def scrape_leverage_section(section_elem, market_name):
+    """Scrape leverage section data (same structure as lending)."""
+    return _scrape_lending_like_section(section_elem, "Leverage", market_name)

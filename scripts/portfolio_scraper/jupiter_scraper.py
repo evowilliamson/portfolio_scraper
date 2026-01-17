@@ -13,6 +13,7 @@ from datetime import datetime
 from .jupiter.sections import (
     scrape_farming_section,
     scrape_lending_section,
+    scrape_leverage_section,
     scrape_wallet_section,
 )
 
@@ -110,7 +111,30 @@ class JupiterScraper:
             print("[Jupiter] Tip: Make sure you solved any captcha in the Chrome window")
             return False
 
-
+    def _extract_market_name(self, summary_elem):
+        """Extract market name from summary element.
+        
+        Args:
+            summary_elem: Selenium element for the section summary
+            
+        Returns:
+            str: Market name or "Unknown Market"
+        """
+        try:
+            market_elem = summary_elem.find_element(
+                By.CSS_SELECTOR,
+                "div.flex.flex-row.items-center.text-sm p"
+            )
+            return market_elem.text.strip()
+        except NoSuchElementException:
+            try:
+                market_elem = summary_elem.find_element(
+                    By.CSS_SELECTOR,
+                    "p.max-sm\\:hidden"
+                )
+                return market_elem.text.strip()
+            except NoSuchElementException:
+                return "Unknown Market"
     
     def scrape_portfolio(self, wallet_address):
         """Main scraping function"""
@@ -164,28 +188,21 @@ class JupiterScraper:
                                 section_data = scrape_wallet_section(section)
                                 project_info["sections"].append(section_data)
                             elif "farming" in summary_text:
+                                print(f"[Jupiter]   Processing Farming section")
                                 section_data = scrape_farming_section(section)
                                 project_info["sections"].append(section_data)
                             elif "lending" in summary_text:
-                                market_name = "Unknown Market"
-                                try:
-                                    market_elem = summary_elem.find_element(
-                                        By.CSS_SELECTOR,
-                                        "div.flex.flex-row.items-center.text-sm p"
-                                    )
-                                    market_name = market_elem.text.strip()
-                                except NoSuchElementException:
-                                    try:
-                                        market_elem = summary_elem.find_element(
-                                            By.CSS_SELECTOR,
-                                            "p.max-sm\\:hidden"
-                                        )
-                                        market_name = market_elem.text.strip()
-                                    except:
-                                        pass
-                                
+                                print(f"[Jupiter]   Processing Lending section")
+                                market_name = self._extract_market_name(summary_elem)
                                 section_data = scrape_lending_section(section, market_name)
                                 project_info["sections"].append(section_data)
+                            elif "leverage" in summary_text:
+                                print(f"[Jupiter]   Processing Leverage section")
+                                market_name = self._extract_market_name(summary_elem)
+                                section_data = scrape_leverage_section(section, market_name)
+                                project_info["sections"].append(section_data)
+                            else:
+                                print(f"[Jupiter]   Skipping unknown section: {summary_text}")
                         except Exception as e:
                             print(f"[Jupiter]     Error processing section: {e}")
                             import traceback
