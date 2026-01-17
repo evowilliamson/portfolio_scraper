@@ -10,6 +10,12 @@ import time
 import os
 from datetime import datetime
 
+from .jupiter.sections import (
+    scrape_farming_section,
+    scrape_lending_section,
+    scrape_wallet_section,
+)
+
 class JupiterScraper:
     """Scraper for Jupiter (Solana) portfolio with anti-bot detection"""
     
@@ -105,210 +111,6 @@ class JupiterScraper:
             return False
 
 
-    def parse_numeric_value(self, text):
-        """Parse numeric value from text"""
-        text = text.strip()
-        if text.startswith('<'):
-            return 0
-        text = text.replace('$', '').replace(',', '')
-        try:
-            return float(text)
-        except ValueError:
-            return 0
-    
-    def extract_token_info(self, cell):
-        """Extract token name from cell"""
-        try:
-            token_elem = cell.find_element(By.CSS_SELECTOR, "p.text-sm")
-            return token_elem.text.strip() or "Unknown"
-        except NoSuchElementException:
-            text = cell.text.strip().split('\n')[0]
-            return text if text else "Unknown"
-    
-    def extract_balance_only(self, balance_text):
-        """Parse balance text (numeric only, no token name)"""
-        lines = balance_text.strip().split('\n')
-        if len(lines) >= 1:
-            # Try to extract just the numeric part
-            balance_str = lines[0].strip().replace(',', '')
-            # Remove any non-numeric characters except decimal point and minus
-            import re
-            balance_str = re.sub(r'[^\d.-]', '', balance_str)
-            try:
-                return float(balance_str) if balance_str else 0
-            except ValueError:
-                return 0
-        return 0
-    
-    def extract_balance_and_token(self, balance_text):
-        """Parse balance text like '46,172 CASH' into numeric balance"""
-        lines = balance_text.strip().split('\n')
-        if len(lines) >= 1:
-            parts = lines[0].strip().rsplit(' ', 1)
-            if len(parts) == 2:
-                balance_str = parts[0].replace(',', '')
-                try:
-                    return float(balance_str)
-                except ValueError:
-                    return 0
-            else:
-                # Fallback: try to parse the whole thing as a number
-                return self.extract_balance_only(balance_text)
-        return 0
-    
-    def extract_yield_value(self, cell):
-        """Extract yield percentage as numeric value"""
-        try:
-            yield_elem = cell.find_element(By.CSS_SELECTOR, "span")
-            yield_text = yield_elem.text.strip().replace('%', '').replace('+', '')
-            return float(yield_text) if yield_text else 0
-        except (NoSuchElementException, ValueError):
-            return 0
-    
-    def scrape_wallet_section(self, section_elem):
-        """Scrape wallet section data (similar to farming but without yield column)"""
-        wallet_data = {
-            "section_type": "Wallet",
-            "assets": []
-        }
-        
-        try:
-            table = section_elem.find_element(By.CSS_SELECTOR, "table")
-            tbodies = table.find_elements(By.TAG_NAME, "tbody")
-            
-            if len(tbodies) > 0:
-                asset_rows = tbodies[0].find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-                
-                print(f"[Jupiter]     Wallet section found {len(asset_rows)} asset rows")
-                
-                for row_idx, row in enumerate(asset_rows):
-                    try:
-                        cells = row.find_elements(By.TAG_NAME, "td")
-                        print(f"[Jupiter]       Row {row_idx+1}: {len(cells)} cells")
-                        
-                        if len(cells) >= 4:
-                            # Extract token (column 0), balance (column 1), and value (column 3)
-                            # Skip column 2 (Price/24hΔ)
-                            token = self.extract_token_info(cells[0])
-                            balance_text = cells[1].text.strip()
-                            value = self.parse_numeric_value(cells[3].text.strip())
-                            
-                            # Use the new extract_balance_only for wallet section
-                            balance = self.extract_balance_only(balance_text)
-                            
-                            print(f"[Jupiter]       Token: {token}, Balance text: '{balance_text}', Balance: {balance}, Value: {value}")
-                            
-                            asset_info = {
-                                "token": token,
-                                "balance": balance,
-                                "value": value
-                            }
-                            wallet_data["assets"].append(asset_info)
-                    except Exception as e:
-                        print(f"[Jupiter] Warning: Failed to parse wallet asset row {row_idx+1}: {e}")
-                        import traceback
-                        traceback.print_exc()
-        except Exception as e:
-            print(f"[Jupiter] Error scraping wallet section: {e}")
-            import traceback
-            traceback.print_exc()
-        
-        return wallet_data
-    
-    def scrape_farming_section(self, section_elem):
-        """Scrape farming section data"""
-        farming_data = {
-            "section_type": "Farming",
-            "assets": []
-        }
-        
-        try:
-            table = section_elem.find_element(By.CSS_SELECTOR, "table")
-            tbodies = table.find_elements(By.TAG_NAME, "tbody")
-            
-            if len(tbodies) > 0:
-                asset_rows = tbodies[0].find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-                
-                for row in asset_rows:
-                    try:
-                        cells = row.find_elements(By.TAG_NAME, "td")
-                        if len(cells) >= 4:
-                            asset_info = {
-                                "token": self.extract_token_info(cells[0]),
-                                "balance": self.extract_balance_and_token(cells[1].text.strip()),
-                                "yield": self.extract_yield_value(cells[2]),
-                                "value": self.parse_numeric_value(cells[3].text.strip())
-                            }
-                            farming_data["assets"].append(asset_info)
-                    except Exception as e:
-                        print(f"[Jupiter] Warning: Failed to parse asset row: {e}")
-        except Exception as e:
-            print(f"[Jupiter] Error scraping farming section: {e}")
-        
-        return farming_data
-    
-    def scrape_lending_section(self, section_elem, market_name):
-        """Scrape lending section data"""
-        lending_data = {
-            "section_type": "Lending",
-            "market_name": market_name,
-            "supplied": [],
-            "borrowed": []
-        }
-        
-        try:
-            table = section_elem.find_element(By.CSS_SELECTOR, "table")
-            theads = table.find_elements(By.TAG_NAME, "thead")
-            tbodies = table.find_elements(By.TAG_NAME, "tbody")
-            
-            tbody_index = 0
-            
-            for thead in theads:
-                thead_text = thead.text.lower()
-                
-                if "supplied" in thead_text:
-                    if tbody_index < len(tbodies):
-                        tbody = tbodies[tbody_index]
-                        rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-                        
-                        for row in rows:
-                            try:
-                                cells = row.find_elements(By.TAG_NAME, "td")
-                                if len(cells) >= 5:
-                                    asset_info = {
-                                        "token": self.extract_token_info(cells[0]),
-                                        "balance": self.extract_balance_and_token(cells[1].text.strip()),
-                                        "yield": self.extract_yield_value(cells[3]),
-                                        "value": self.parse_numeric_value(cells[4].text.strip())
-                                    }
-                                    lending_data["supplied"].append(asset_info)
-                            except Exception as e:
-                                print(f"[Jupiter] Warning: Failed to parse supplied row: {e}")
-                        tbody_index += 1
-                
-                elif "borrowed" in thead_text:
-                    if tbody_index < len(tbodies):
-                        tbody = tbodies[tbody_index]
-                        rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-                        
-                        for row in rows:
-                            try:
-                                cells = row.find_elements(By.TAG_NAME, "td")
-                                if len(cells) >= 5:
-                                    asset_info = {
-                                        "token": self.extract_token_info(cells[0]),
-                                        "balance": self.extract_balance_and_token(cells[1].text.strip()),
-                                        "yield": self.extract_yield_value(cells[3]),
-                                        "value": self.parse_numeric_value(cells[4].text.strip())
-                                    }
-                                    lending_data["borrowed"].append(asset_info)
-                            except Exception as e:
-                                print(f"[Jupiter] Warning: Failed to parse borrowed row: {e}")
-                        tbody_index += 1
-        except Exception as e:
-            print(f"[Jupiter] Error scraping lending section: {e}")
-        
-        return lending_data
     
     def scrape_portfolio(self, wallet_address):
         """Main scraping function"""
@@ -359,10 +161,10 @@ class JupiterScraper:
                             
                             if "wallet" in summary_text:
                                 print(f"[Jupiter]   Processing Wallet section")
-                                section_data = self.scrape_wallet_section(section)
+                                section_data = scrape_wallet_section(section)
                                 project_info["sections"].append(section_data)
                             elif "farming" in summary_text:
-                                section_data = self.scrape_farming_section(section)
+                                section_data = scrape_farming_section(section)
                                 project_info["sections"].append(section_data)
                             elif "lending" in summary_text:
                                 market_name = "Unknown Market"
@@ -382,7 +184,7 @@ class JupiterScraper:
                                     except:
                                         pass
                                 
-                                section_data = self.scrape_lending_section(section, market_name)
+                                section_data = scrape_lending_section(section, market_name)
                                 project_info["sections"].append(section_data)
                         except Exception as e:
                             print(f"[Jupiter]     Error processing section: {e}")
