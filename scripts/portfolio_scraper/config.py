@@ -39,6 +39,9 @@ EVM_ADDRESSES = _parse_list('EVM_ADDRESSES', default=[])
 # Scraping configuration
 SCRAPE_INTERVAL_MINUTES = _parse_int('SCRAPE_INTERVAL_MINUTES', default=15)
 
+# Rabby password
+RABBY_PASSWORD = os.getenv('RABBY_PASSWORD', default='hyperhyper1A')
+
 # Chrome configuration
 CHROME_DEBUG_PORT = _parse_int('CHROME_DEBUG_PORT', default=9222)
 CHROME_STARTUP_TIMEOUT = _parse_int('CHROME_STARTUP_TIMEOUT', default=30)

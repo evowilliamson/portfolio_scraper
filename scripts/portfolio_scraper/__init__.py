@@ -6,6 +6,7 @@ Modular scraper for Solana (Jupiter) and EVM (DeBank) portfolios
 
 from .config import (
     SOLANA_ADDRESSES,
+    RABBY_PASSWORD,
     EVM_ADDRESSES,
     SCRAPE_INTERVAL_MINUTES,
     CHROME_DEBUG_PORT,
@@ -13,7 +14,8 @@ from .config import (
     FLASK_PORT,
     FLASK_HOST,
     OUTPUT_DIR,
-    NGROK_AUTHTOKEN
+    NGROK_AUTHTOKEN,
+    RABBY_PASSWORD
 )
 
 from .utils import (
@@ -32,6 +34,7 @@ from .flask_app import create_app, run_app
 __version__ = '1.0.0'
 __all__ = [
     'SOLANA_ADDRESSES',
+    'RABBY_PASSWORD',
     'EVM_ADDRESSES',
     'SCRAPE_INTERVAL_MINUTES',
     'CHROME_DEBUG_PORT',

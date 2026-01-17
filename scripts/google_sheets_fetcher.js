@@ -61,7 +61,6 @@ function fetchSolanaPortfolio() {
     if (!sheet) {
       const errorMsg = `Sheet "${SHEET_NAME}" not found!`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     Logger.log(`Sheet found: ${SHEET_NAME}`);
@@ -73,7 +72,6 @@ function fetchSolanaPortfolio() {
     if (!walletAddress || walletAddress.toString().trim() === "") {
       const errorMsg = "Wallet address in cell B1 is empty!";
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -112,7 +110,6 @@ function fetchSolanaPortfolio() {
     if (responseCode !== 200) {
       const errorMsg = `API Error: ${responseCode}\n\nResponse:\n${responseText.substring(0, 1000)}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -120,7 +117,6 @@ function fetchSolanaPortfolio() {
     if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
       const errorMsg = "ERROR: Received HTML instead of JSON!\n\nVisit this URL in your browser first:\n" + url;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -134,7 +130,6 @@ function fetchSolanaPortfolio() {
     } catch (parseError) {
       const errorMsg = `JSON Parse Error: ${parseError.toString()}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -142,13 +137,11 @@ function fetchSolanaPortfolio() {
     if (portfolioData.error) {
       const errorMsg = `API returned error: ${portfolioData.error}\n${portfolioData.message || ""}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
     if (!portfolioData.projects || portfolioData.projects.length === 0) {
       Logger.log("WARNING: No portfolio projects found");
-      SpreadsheetApp.getUi().alert("No portfolio projects found in response");
       return;
     }
     
@@ -266,10 +259,8 @@ function fetchSolanaPortfolio() {
       }
       
       Logger.log(`✓ Successfully fetched portfolio data! ${dataRows.length} rows imported.`);
-      SpreadsheetApp.getUi().alert(`✓ Successfully fetched Solana portfolio!\n${dataRows.length} rows imported.`);
     } else {
       Logger.log("WARNING: No portfolio data found");
-      SpreadsheetApp.getUi().alert("No portfolio data found to import.");
     }
     
     // Write metadata
@@ -285,7 +276,6 @@ function fetchSolanaPortfolio() {
   } catch (error) {
     const errorMsg = `Unexpected Error: ${error.toString()}`;
     Logger.log(`FATAL ERROR: ${errorMsg}`);
-    SpreadsheetApp.getUi().alert(errorMsg);
   }
 }
 
@@ -306,7 +296,6 @@ function fetchEVMPortfolio() {
     if (!sheet) {
       const errorMsg = `Sheet "${SHEET_NAME}" not found!`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     Logger.log(`Sheet found: ${SHEET_NAME}`);
@@ -318,7 +307,6 @@ function fetchEVMPortfolio() {
     if (!walletAddress || walletAddress.toString().trim() === "") {
       const errorMsg = "Wallet address in cell B1 is empty!";
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -352,7 +340,6 @@ function fetchEVMPortfolio() {
     if (responseCode !== 200) {
       const errorMsg = `API Error: ${responseCode}\n\nResponse:\n${responseText.substring(0, 1000)}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -360,7 +347,6 @@ function fetchEVMPortfolio() {
     if (responseText.trim().startsWith("<!DOCTYPE") || responseText.trim().startsWith("<html")) {
       const errorMsg = "ERROR: Received HTML instead of JSON!\n\nVisit this URL in your browser first:\n" + url;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -374,7 +360,6 @@ function fetchEVMPortfolio() {
     } catch (parseError) {
       const errorMsg = `JSON Parse Error: ${parseError.toString()}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
@@ -382,13 +367,11 @@ function fetchEVMPortfolio() {
     if (portfolioData.error) {
       const errorMsg = `API returned error: ${portfolioData.error}\n${portfolioData.message || ""}`;
       Logger.log(`ERROR: ${errorMsg}`);
-      SpreadsheetApp.getUi().alert(errorMsg);
       return;
     }
     
     if (!portfolioData.projects || portfolioData.projects.length === 0) {
       Logger.log("WARNING: No portfolio projects found");
-      SpreadsheetApp.getUi().alert("No portfolio projects found in response");
       return;
     }
     
@@ -554,19 +537,15 @@ function testAPIConnection() {
                     `Last update: ${healthData.last_update || "N/A"}\n` +
                     `Scrape interval: ${healthData.scrape_interval_minutes || "N/A"} min`;
         Logger.log(msg);
-        SpreadsheetApp.getUi().alert(msg);
       } catch (e) {
         Logger.log("Response is not valid JSON");
-        SpreadsheetApp.getUi().alert(`✓ API responded (${responseCode}) but response is not JSON`);
       }
     } else {
       const msg = `✗ API connection failed: ${responseCode}\n\n${responseText.substring(0, 500)}`;
       Logger.log(msg);
-      SpreadsheetApp.getUi().alert(msg);
     }
   } catch (error) {
     const msg = `✗ Connection error: ${error.toString()}`;
     Logger.log(msg);
-    SpreadsheetApp.getUi().alert(msg);
   }
 }

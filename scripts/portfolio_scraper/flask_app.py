@@ -8,6 +8,7 @@ import atexit
 from .config import (
     SOLANA_ADDRESSES, 
     EVM_ADDRESSES, 
+    RABBY_PASSWORD,
     SCRAPE_INTERVAL_MINUTES,
     CHROME_DEBUG_PORT,
     CHROME_PROFILE,

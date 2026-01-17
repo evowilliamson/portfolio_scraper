@@ -9,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import time
 import os
 from datetime import datetime
+from .config import RABBY_PASSWORD
 
 
 class RabbyScraper:
@@ -19,6 +20,7 @@ class RabbyScraper:
         self.debug_port = debug_port  # Not used anymore, kept for compatibility
         self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_rabby_scraper')
         self.min_usd_value = 5  # Minimum USD value threshold
+        self.password = RABBY_PASSWORD  # Use provided password or default from config
     
     def connect_to_chrome(self):
         """Start Chrome with undetected-chromedriver for anti-detection"""
@@ -36,7 +38,7 @@ class RabbyScraper:
             # Start Chrome with anti-detection
             self.driver = uc.Chrome(
                 options=options,
-                version_main=142,  # Match Chrome 142.x
+                version_main=144,  # Match Chrome 144.x
                 use_subprocess=True
             )
             
@@ -56,6 +58,10 @@ class RabbyScraper:
         print(f"[Rabby] Navigating to {url}...")
         self.driver.get(url)
         
+        # Check for and handle unlock screen first
+        if not self.handle_unlock_screen():
+            return False
+        
         try:
             # Wait for wallet list to load
             WebDriverWait(self.driver, 20).until(
@@ -66,6 +72,48 @@ class RabbyScraper:
             return True
         except TimeoutException:
             print("[Rabby] ✗ Failed to load wallet list")
+            return False
+    
+    def handle_unlock_screen(self):
+        """Check for and handle Rabby unlock screen if present"""
+        print("[Rabby] Checking for unlock screen...")
+        
+        try:
+            # Check if password input is present
+            password_input = WebDriverWait(self.driver, 5).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "input#password"))
+            )
+            
+            print("[Rabby] Unlock screen detected, entering password...")
+            
+            # Enter password
+            password_input.clear()
+            password_input.send_keys(self.password)
+            time.sleep(1)
+            
+            # Click unlock button
+            unlock_button = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
+            unlock_button.click()
+            
+            print("[Rabby] ✓ Password entered, waiting for unlock...")
+            
+            # Wait for unlock to complete (password field should disappear)
+            WebDriverWait(self.driver, 10).until(
+                EC.invisibility_of_element_located((By.CSS_SELECTOR, "input#password"))
+            )
+            
+            print("[Rabby] ✓ Successfully unlocked!")
+            time.sleep(2)  # Give it a moment to fully load
+            return True
+            
+        except TimeoutException:
+            # No unlock screen present, already unlocked
+            print("[Rabby] No unlock screen detected (already unlocked)")
+            return True
+        except Exception as e:
+            print(f"[Rabby] ✗ Error handling unlock screen: {e}")
+            import traceback
+            traceback.print_exc()
             return False
     
     def click_defi_tab(self):

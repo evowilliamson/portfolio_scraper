@@ -10,15 +10,15 @@ import time
 import os
 from datetime import datetime
 
-
 class JupiterScraper:
     """Scraper for Jupiter (Solana) portfolio with anti-bot detection"""
     
-    def __init__(self, debug_port=9222, user_data_dir=None):
-        self.debug_port = debug_port
-        self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_jupiter_scraper')
+    def __init__(self, debug_port=None, user_data_dir=None):
         self.driver = None
-        
+        self.debug_port = debug_port  # Not used anymore, kept for compatibility
+        self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_jupiter_scraper')
+        self.min_usd_value = 5  # Minimum USD value threshold
+
     def connect_to_chrome(self):
         """Start Chrome with undetected-chromedriver for anti-detection"""
         print(f"[Jupiter] Starting Chrome with anti-detection...")
@@ -33,10 +33,10 @@ class JupiterScraper:
             options.add_argument('--disable-blink-features=AutomationControlled')
             
             # Start Chrome with anti-detection
-            # Force ChromeDriver version 142 to match installed Chrome
+            # Force ChromeDriver version 144 to match installed Chrome
             self.driver = uc.Chrome(
                 options=options,
-                version_main=142,  # Match Chrome 142.x
+                version_main=144,  # Match Chrome 144.x
                 use_subprocess=True
             )
             
@@ -103,7 +103,8 @@ class JupiterScraper:
             print("[Jupiter] ✗ Page load timeout")
             print("[Jupiter] Tip: Make sure you solved any captcha in the Chrome window")
             return False
-    
+
+
     def parse_numeric_value(self, text):
         """Parse numeric value from text"""
         text = text.strip()
@@ -124,6 +125,21 @@ class JupiterScraper:
             text = cell.text.strip().split('\n')[0]
             return text if text else "Unknown"
     
+    def extract_balance_only(self, balance_text):
+        """Parse balance text (numeric only, no token name)"""
+        lines = balance_text.strip().split('\n')
+        if len(lines) >= 1:
+            # Try to extract just the numeric part
+            balance_str = lines[0].strip().replace(',', '')
+            # Remove any non-numeric characters except decimal point and minus
+            import re
+            balance_str = re.sub(r'[^\d.-]', '', balance_str)
+            try:
+                return float(balance_str) if balance_str else 0
+            except ValueError:
+                return 0
+        return 0
+    
     def extract_balance_and_token(self, balance_text):
         """Parse balance text like '46,172 CASH' into numeric balance"""
         lines = balance_text.strip().split('\n')
@@ -135,6 +151,9 @@ class JupiterScraper:
                     return float(balance_str)
                 except ValueError:
                     return 0
+            else:
+                # Fallback: try to parse the whole thing as a number
+                return self.extract_balance_only(balance_text)
         return 0
     
     def extract_yield_value(self, cell):
@@ -160,22 +179,39 @@ class JupiterScraper:
             if len(tbodies) > 0:
                 asset_rows = tbodies[0].find_elements(By.CSS_SELECTOR, "tr.transition-colors")
                 
-                for row in asset_rows:
+                print(f"[Jupiter]     Wallet section found {len(asset_rows)} asset rows")
+                
+                for row_idx, row in enumerate(asset_rows):
                     try:
                         cells = row.find_elements(By.TAG_NAME, "td")
+                        print(f"[Jupiter]       Row {row_idx+1}: {len(cells)} cells")
+                        
                         if len(cells) >= 4:
                             # Extract token (column 0), balance (column 1), and value (column 3)
                             # Skip column 2 (Price/24hΔ)
+                            token = self.extract_token_info(cells[0])
+                            balance_text = cells[1].text.strip()
+                            value = self.parse_numeric_value(cells[3].text.strip())
+                            
+                            # Use the new extract_balance_only for wallet section
+                            balance = self.extract_balance_only(balance_text)
+                            
+                            print(f"[Jupiter]       Token: {token}, Balance text: '{balance_text}', Balance: {balance}, Value: {value}")
+                            
                             asset_info = {
-                                "token": self.extract_token_info(cells[0]),
-                                "balance": self.extract_balance_and_token(cells[1].text.strip()),
-                                "value": self.parse_numeric_value(cells[3].text.strip())
+                                "token": token,
+                                "balance": balance,
+                                "value": value
                             }
                             wallet_data["assets"].append(asset_info)
                     except Exception as e:
-                        print(f"[Jupiter] Warning: Failed to parse wallet asset row: {e}")
+                        print(f"[Jupiter] Warning: Failed to parse wallet asset row {row_idx+1}: {e}")
+                        import traceback
+                        traceback.print_exc()
         except Exception as e:
             print(f"[Jupiter] Error scraping wallet section: {e}")
+            import traceback
+            traceback.print_exc()
         
         return wallet_data
     
@@ -322,6 +358,7 @@ class JupiterScraper:
                             summary_text = summary_elem.text.lower()
                             
                             if "wallet" in summary_text:
+                                print(f"[Jupiter]   Processing Wallet section")
                                 section_data = self.scrape_wallet_section(section)
                                 project_info["sections"].append(section_data)
                             elif "farming" in summary_text:
@@ -349,11 +386,15 @@ class JupiterScraper:
                                 project_info["sections"].append(section_data)
                         except Exception as e:
                             print(f"[Jupiter]     Error processing section: {e}")
+                            import traceback
+                            traceback.print_exc()
                             continue
                     
                     projects.append(project_info)
                 except Exception as e:
                     print(f"[Jupiter]   Error processing project: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
             
             portfolio_data = {
