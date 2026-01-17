@@ -10,6 +10,9 @@ from .parsers import (
     parse_numeric_value,
 )
 
+# Minimum USD value threshold
+MIN_USD_VALUE = 500
+
 def _get_primary_rows(section_elem):
     """Return rows from the first tbody in the section table."""
     table = section_elem.find_element(By.CSS_SELECTOR, "table")
@@ -20,17 +23,27 @@ def _get_primary_rows(section_elem):
 
 
 def _parse_lending_rows(rows, target_list, balance_idx=1, yield_idx=3, value_idx=4):
-    """Parse lending rows into the provided list."""
+    """Parse lending rows into the provided list (filtered by USD value)."""
     for row in rows:
         try:
             cells = row.find_elements(By.TAG_NAME, "td")
             if len(cells) >= 5:
-                target_list.append({
-                    "token": extract_token_info(cells[0]),
-                    "balance": extract_balance_and_token(cells[balance_idx].text.strip()),
-                    "yield": extract_yield_value(cells[yield_idx]),
-                    "value": parse_numeric_value(cells[value_idx].text.strip())
-                })
+                token = extract_token_info(cells[0])
+                balance = extract_balance_and_token(cells[balance_idx].text.strip())
+                yield_val = extract_yield_value(cells[yield_idx])
+                value = parse_numeric_value(cells[value_idx].text.strip())
+                
+                # Filter by minimum USD value
+                if value >= MIN_USD_VALUE:
+                    target_list.append({
+                        "token": token,
+                        "balance": balance,
+                        "yield": yield_val,
+                        "value": value
+                    })
+                    print(f"[Jupiter]         ✓ Added: {token} - ${value}")
+                else:
+                    print(f"[Jupiter]         ⊘ Skipped (< ${MIN_USD_VALUE}): {token} - ${value}")
         except Exception as e:
             print(f"[Jupiter] Warning: Failed to parse lending row: {e}")
 
@@ -67,7 +80,7 @@ def _scrape_lending_like_section(section_elem, section_type, market_name):
                 if tbody_index < len(tbodies):
                     tbody = tbodies[tbody_index]
                     rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
-
+                    print(f"[Jupiter]       Processing {len(rows)} supplied rows")
                     _parse_lending_rows(rows, section_data["supplied"])
                     tbody_index += 1
 
@@ -75,6 +88,7 @@ def _scrape_lending_like_section(section_elem, section_type, market_name):
                 if tbody_index < len(tbodies):
                     tbody = tbodies[tbody_index]
                     rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+                    print(f"[Jupiter]       Processing {len(rows)} borrowed rows")
                     _parse_lending_rows(rows, section_data["borrowed"])
                     tbody_index += 1
     except Exception as e:
@@ -84,7 +98,7 @@ def _scrape_lending_like_section(section_elem, section_type, market_name):
 
 
 def scrape_wallet_section(section_elem):
-    """Scrape wallet section data (similar to farming but without yield column)."""
+    """Scrape wallet section data (filtered by USD value)."""
     wallet_data = {
         "section_type": "Wallet",
         "assets": []
@@ -108,14 +122,19 @@ def scrape_wallet_section(section_elem):
 
                     print(
                         f"[Jupiter]       Token: {token}, Balance text: '{balance_text}', "
-                        f"Balance: {balance}, Value: {value}"
+                        f"Balance: {balance}, Value: ${value}"
                     )
 
-                    wallet_data["assets"].append({
-                        "token": token,
-                        "balance": balance,
-                        "value": value
-                    })
+                    # Filter by minimum USD value
+                    if value >= MIN_USD_VALUE:
+                        wallet_data["assets"].append({
+                            "token": token,
+                            "balance": balance,
+                            "value": value
+                        })
+                        print(f"[Jupiter]       ✓ Added to output")
+                    else:
+                        print(f"[Jupiter]       ⊘ Skipped (< ${MIN_USD_VALUE})")
             except Exception as e:
                 print(f"[Jupiter] Warning: Failed to parse wallet asset row {row_idx+1}: {e}")
                 import traceback
@@ -129,7 +148,7 @@ def scrape_wallet_section(section_elem):
 
 
 def scrape_farming_section(section_elem):
-    """Scrape farming section data."""
+    """Scrape farming section data (filtered by USD value)."""
     farming_data = {
         "section_type": "Farming",
         "assets": []
@@ -137,19 +156,30 @@ def scrape_farming_section(section_elem):
 
     try:
         asset_rows = _get_primary_rows(section_elem)
+        print(f"[Jupiter]     Farming section found {len(asset_rows)} asset rows")
 
         for row in asset_rows:
             try:
                 cells = row.find_elements(By.TAG_NAME, "td")
                 if len(cells) >= 4:
-                    farming_data["assets"].append({
-                        "token": extract_token_info(cells[0]),
-                        "balance": extract_balance_and_token(cells[1].text.strip()),
-                        "yield": extract_yield_value(cells[2]),
-                        "value": parse_numeric_value(cells[3].text.strip())
-                    })
+                    token = extract_token_info(cells[0])
+                    balance = extract_balance_and_token(cells[1].text.strip())
+                    yield_val = extract_yield_value(cells[2])
+                    value = parse_numeric_value(cells[3].text.strip())
+                    
+                    # Filter by minimum USD value
+                    if value >= MIN_USD_VALUE:
+                        farming_data["assets"].append({
+                            "token": token,
+                            "balance": balance,
+                            "yield": yield_val,
+                            "value": value
+                        })
+                        print(f"[Jupiter]       ✓ Added: {token} - ${value}")
+                    else:
+                        print(f"[Jupiter]       ⊘ Skipped (< ${MIN_USD_VALUE}): {token} - ${value}")
             except Exception as e:
-                print(f"[Jupiter] Warning: Failed to parse asset row: {e}")
+                print(f"[Jupiter] Warning: Failed to parse farming asset row: {e}")
     except Exception as e:
         print(f"[Jupiter] Error scraping farming section: {e}")
 
