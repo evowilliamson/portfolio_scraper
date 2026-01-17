@@ -27,16 +27,26 @@ def extract_token_info(cell):
         return text if text else "Unknown"
 
 
+def _parse_float(text):
+    """Parse float from already sanitized string."""
+    try:
+        return float(text) if text else 0
+    except ValueError:
+        return 0
+
+
+def _sanitize_numeric(text):
+    """Strip non-numeric characters except decimal and minus."""
+    return re.sub(r'[^\d.-]', '', text)
+
+
 def extract_balance_only(balance_text):
     """Parse balance text (numeric only, no token name)."""
     lines = balance_text.strip().split('\n')
     if len(lines) >= 1:
         balance_str = lines[0].strip().replace(',', '')
-        balance_str = re.sub(r'[^\d.-]', '', balance_str)
-        try:
-            return float(balance_str) if balance_str else 0
-        except ValueError:
-            return 0
+        balance_str = _sanitize_numeric(balance_str)
+        return _parse_float(balance_str)
     return 0
 
 
@@ -47,10 +57,7 @@ def extract_balance_and_token(balance_text):
         parts = lines[0].strip().rsplit(' ', 1)
         if len(parts) == 2:
             balance_str = parts[0].replace(',', '')
-            try:
-                return float(balance_str)
-            except ValueError:
-                return 0
+            return _parse_float(balance_str)
         return extract_balance_only(balance_text)
     return 0
 
