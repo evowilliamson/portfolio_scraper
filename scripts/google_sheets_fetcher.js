@@ -404,7 +404,24 @@ function fetchEVMPortfolio() {
         const sectionType = section.section_type;
         Logger.log(`    Processing section: ${sectionType}`);
         
-        if (sectionType === "Lending") {
+        if (sectionType === "Token") {
+          // Process token holdings
+          if (section.assets && section.assets.length > 0) {
+            Logger.log(`      Found ${section.assets.length} token holdings`);
+            for (const asset of section.assets) {
+              dataRows.push([
+                projectName,
+                chain,
+                totalValue,
+                sectionType,
+                "Holdings",
+                asset.token,
+                asset.amount,  // Token section uses 'amount' not 'balance'
+                asset.usd_value
+              ]);
+            }
+          }
+        } else if (sectionType === "Lending") {
           // Process supplied assets
           if (section.supplied && section.supplied.length > 0) {
             for (const asset of section.supplied) {
@@ -460,6 +477,36 @@ function fetchEVMPortfolio() {
                 totalValue,
                 sectionType,
                 "Deposit",
+                asset.pool,
+                asset.balance,
+                asset.usd_value
+              ]);
+            }
+          }
+        } else if (sectionType === "Staked") {
+          if (section.assets && section.assets.length > 0) {
+            for (const asset of section.assets) {
+              dataRows.push([
+                projectName,
+                chain,
+                totalValue,
+                sectionType,
+                "Staked",
+                asset.pool,
+                asset.balance,
+                asset.usd_value
+              ]);
+            }
+          }
+        } else if (sectionType === "Locked") {
+          if (section.assets && section.assets.length > 0) {
+            for (const asset of section.assets) {
+              dataRows.push([
+                projectName,
+                chain,
+                totalValue,
+                sectionType,
+                "Locked",
                 asset.pool,
                 asset.balance,
                 asset.usd_value

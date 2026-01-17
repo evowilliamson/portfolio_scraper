@@ -135,6 +135,42 @@ class RabbyScraper:
         except Exception as e:
             print(f"[Rabby] ✗ Error clicking DeFi tab: {e}")
             return False
+
+    def click_token_tab(self):
+        """Click the Token tab to load token balances"""
+        print("[Rabby] Clicking Token tab...")
+        
+        try:
+            # Find and click the Token tab button (try different possible IDs)
+            token_tab = None
+            try:
+                token_tab = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div.ant-tabs-tab-btn[id='rc-tabs-0-tab-token']"))
+                )
+            except TimeoutException:
+                # Try alternative ID
+                token_tab = WebDriverWait(self.driver, 10).until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "div.ant-tabs-tab-btn[id='rc-tabs-0-tab-tokens']"))
+                )
+            
+            token_tab.click()
+            print("[Rabby] ✓ Token tab clicked")
+            time.sleep(2)
+            return True
+        except TimeoutException:
+            print("[Rabby] ✗ Failed to find/click Token tab")
+            # Try to find all tabs and print them for debugging
+            try:
+                all_tabs = self.driver.find_elements(By.CSS_SELECTOR, "div.ant-tabs-tab-btn")
+                print(f"[Rabby] Available tabs: {[tab.get_attribute('id') for tab in all_tabs]}")
+            except:
+                pass
+            return False
+        except Exception as e:
+            print(f"[Rabby] ✗ Error clicking Token tab: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def click_wallet_by_address(self, target_address):
         """Click on wallet that matches the target address"""
@@ -160,19 +196,14 @@ class RabbyScraper:
                         item.click()
                         print(f"[Rabby] ✓ Clicked wallet")
                         
-                        # Wait for portfolio page to load
-                        time.sleep(5)
+                        # Wait for portfolio page to load (wait for tabs to appear)
+                        time.sleep(3)
                         
-                        # Wait for projects to appear
+                        # Wait for tab navigation to be ready
                         WebDriverWait(self.driver, 20).until(
-                            EC.presence_of_element_located((By.CSS_SELECTOR, "div.rabby-ProtocolItemWrapper-rabby--utb8ns"))
+                            EC.presence_of_element_located((By.CSS_SELECTOR, "div.ant-tabs-tab-btn"))
                         )
                         print("[Rabby] ✓ Portfolio page loaded")
-                        
-                        # Scroll to trigger lazy loading
-                        self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                        time.sleep(2)
-                        self.driver.execute_script("window.scrollTo(0, 0);")
                         time.sleep(2)
                         
                         return True
@@ -195,6 +226,17 @@ class RabbyScraper:
         text = text.replace('$', '').replace(',', '')
         try:
             return float(text)
+        except ValueError:
+            return 0
+
+    def parse_amount_value(self, text):
+        """Parse numeric amount from text like '19,033.70 reUSDe'"""
+        parts = text.strip().split()
+        if not parts:
+            return 0
+        amount_text = parts[0].replace(',', '')
+        try:
+            return float(amount_text)
         except ValueError:
             return 0
     
@@ -557,6 +599,77 @@ class RabbyScraper:
             print(f"[Rabby]     Error scraping locked section: {e}")
         
         return locked_data
+
+    def scrape_token_tab(self):
+        """Scrape Token tab balances and return as a project dict"""
+        if not self.click_token_tab():
+            return None
+        
+        try:
+            WebDriverWait(self.driver, 15).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "div.rabby-TokenRowWrapper-rabby--1n616m8"))
+            )
+        except TimeoutException:
+            print("[Rabby] ✗ Token rows not found")
+            return None
+        
+        rows = self.driver.find_elements(By.CSS_SELECTOR, "div.rabby-TokenRowWrapper-rabby--1n616m8")
+        print(f"[Rabby] Found {len(rows)} token rows")
+        
+        assets = []
+        total_value = 0
+        
+        for row in rows:
+            try:
+                cells = row.find_elements(By.XPATH, "./div")
+                if len(cells) < 4:
+                    continue
+                
+                # Token name
+                token = None
+                try:
+                    token_elem = cells[0].find_element(By.CSS_SELECTOR, "span.ml-2")
+                    token = token_elem.text.strip()
+                except NoSuchElementException:
+                    token = cells[0].text.strip().split('\n')[0]
+                
+                # Price
+                price_text = cells[1].text.strip().split('\n')[0]
+                price = self.parse_numeric_value(price_text)
+                
+                # Amount
+                amount_text = cells[2].text.strip().split('\n')[0]
+                amount = self.parse_amount_value(amount_text)
+                
+                # USD Value
+                usd_text = cells[3].text.strip()
+                usd_value = self.parse_numeric_value(usd_text)
+                
+                if token and usd_value >= self.min_usd_value:
+                    assets.append({
+                        "token": token,
+                        "price": price,
+                        "amount": amount,
+                        "usd_value": usd_value
+                    })
+                    total_value += usd_value
+                elif usd_value < self.min_usd_value:
+                    print(f"[Rabby]       ⊘ Skipped token (< ${self.min_usd_value}): {token} - ${usd_value}")
+            except Exception as e:
+                print(f"[Rabby]       Warning: Failed to parse token row: {e}")
+                continue
+        
+        return {
+            "project_name": "Token",
+            "chain": "evm",
+            "total_value": total_value,
+            "sections": [
+                {
+                    "section_type": "Token",
+                    "assets": assets
+                }
+            ]
+        }
     
     def scrape_current_portfolio(self, wallet_address):
         """Scrape portfolio for currently loaded wallet"""
@@ -564,9 +677,33 @@ class RabbyScraper:
         print(f"[Rabby] Filtering assets with USD value >= ${self.min_usd_value}")
         
         try:
-            # Find all projects
+            # First scrape Token tab
+            token_project = self.scrape_token_tab()
+            
+            # Switch to DeFi tab to scrape DeFi projects
+            if not self.click_defi_tab():
+                print("[Rabby] ✗ Failed to return to DeFi tab after Token")
+                return None
+            
+            # Wait for DeFi projects to load
+            try:
+                WebDriverWait(self.driver, 15).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "div.rabby-ProtocolItemWrapper-rabby--utb8ns"))
+                )
+                print("[Rabby] ✓ DeFi projects loaded")
+                time.sleep(2)
+                
+                # Scroll to trigger lazy loading of DeFi projects
+                self.driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                time.sleep(2)
+                self.driver.execute_script("window.scrollTo(0, 0);")
+                time.sleep(2)
+            except TimeoutException:
+                print("[Rabby] ⚠ No DeFi projects found (timeout)")
+            
+            # Find all DeFi projects
             project_elements = self.driver.find_elements(By.CSS_SELECTOR, "div.rabby-ProtocolItemWrapper-rabby--utb8ns")
-            print(f"[Rabby] Found {len(project_elements)} projects")
+            print(f"[Rabby] Found {len(project_elements)} DeFi projects")
             
             projects = []
             
@@ -630,6 +767,9 @@ class RabbyScraper:
                 except Exception as e:
                     print(f"[Rabby]   Error processing project: {e}")
                     continue
+
+            if token_project:
+                projects.insert(0, token_project)
             
             portfolio_data = {
                 "blockchain": "evm",
