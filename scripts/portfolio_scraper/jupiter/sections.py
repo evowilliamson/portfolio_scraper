@@ -194,3 +194,41 @@ def scrape_lending_section(section_elem, market_name):
 def scrape_leverage_section(section_elem, market_name):
     """Scrape leverage section data (same structure as lending)."""
     return _scrape_lending_like_section(section_elem, "Leverage", market_name)
+
+def scrape_liquidity_pool_section(section_elem):
+    """Scrape liquidity pool section data (same structure as Farming)."""
+    liquidity_pool_data = {
+        "section_type": "LiquidityPool",
+        "assets": []
+    }
+
+    try:
+        asset_rows = _get_primary_rows(section_elem)
+        print(f"[Jupiter]     LiquidityPool section found {len(asset_rows)} asset rows")
+
+        for row in asset_rows:
+            try:
+                cells = row.find_elements(By.TAG_NAME, "td")
+                if len(cells) >= 4:
+                    token = extract_token_info(cells[0])
+                    balance = extract_balance_and_token(cells[1].text.strip())
+                    yield_val = extract_yield_value(cells[2])
+                    value = parse_numeric_value(cells[3].text.strip())
+                    
+                    # Filter by minimum USD value
+                    if value >= MIN_USD_VALUE:
+                        liquidity_pool_data["assets"].append({
+                            "token": token,
+                            "balance": balance,
+                            "yield": yield_val,
+                            "value": value
+                        })
+                        print(f"[Jupiter]       ✓ Added: {token} - ${value}")
+                    else:
+                        print(f"[Jupiter]       ⊘ Skipped (< ${MIN_USD_VALUE}): {token} - ${value}")
+            except Exception as e:
+                print(f"[Jupiter] Warning: Failed to parse liquidity pool asset row: {e}")
+    except Exception as e:
+        print(f"[Jupiter] Error scraping liquidity pool section: {e}")
+
+    return liquidity_pool_data    

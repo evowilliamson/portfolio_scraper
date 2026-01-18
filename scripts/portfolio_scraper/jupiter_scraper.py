@@ -14,6 +14,7 @@ from .jupiter.sections import (
     scrape_farming_section,
     scrape_lending_section,
     scrape_leverage_section,
+    scrape_liquidity_pool_section,
     scrape_wallet_section,
 )
 
@@ -191,6 +192,10 @@ class JupiterScraper:
                             elif "farming" in summary_text:
                                 print(f"[Jupiter]   Processing Farming section")
                                 section_data = scrape_farming_section(section)
+                                project_info["sections"].append(section_data)
+                            elif "liquiditypool" in summary_text or "liquidity pool" in summary_text:
+                                print(f"[Jupiter]   Processing LiquidityPool section")
+                                section_data = scrape_liquidity_pool_section(section)
                                 project_info["sections"].append(section_data)
                             elif "lending" in summary_text:
                                 print(f"[Jupiter]   Processing Lending section")

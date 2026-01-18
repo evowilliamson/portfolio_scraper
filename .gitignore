@@ -1,9 +1,7 @@
 # Virtual environment
 .venv/
 venv/
-ENV/
-
-# Environment variables
+ENV/# Environment variables
 .env
 
 # Python
@@ -11,9 +9,7 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.Python
-
-# IDEs
+.Python# IDEs
 .vscode/
 .idea/
 *.swp
@@ -23,6 +19,7 @@ __pycache__/
 # Output files
 *.json
 output/
+feeds/
 
 # Logs
 *.log

@@ -1,56 +1,152 @@
+const BASE_URL = 'https://nondefensible-unbridled-zainab.ngrok-free.dev';
+
+const CONFIG = {
+  BASE_URL: BASE_URL,
+  API_HEALTH: BASE_URL + '/health',
+  API_PORTFOLIO: BASE_URL + '/portfolio',
+  ALERT_EMAIL: 'alrter@zohomail.com',     // ← also probably typo: alert@zohomail.com ?
+  TIMEOUT_SECONDS: 30
+};
 
 
 /**
- * Unified Portfolio Fetcher for Google Sheets
- * 
- * This script fetches portfolio data from both Solana (Jupiter) and EVM (DeBank)
- * 
- * Setup:
- * 1. Open your Google Sheet
- * 2. Go to Extensions > Apps Script
- * 3. Paste this code
- * 4. Update the API_URL constant with your server URL
- * 5. Create two sheets: "solana_portfolio" and "EVM_portfolio"
- * 6. Put wallet addresses in cell B1 of each sheet
- * 7. Run the functions or use the custom menu
+ * Check the health of the portfolio scraper API
+ * Returns true if healthy, false otherwise
  */
+function checkApiHealth() {
+  const healthUrl = `${CONFIG.API_HEALTH}`;
+  
+  try {
+    const response = UrlFetchApp.fetch(healthUrl, {
+      method: 'get',
+      muteHttpExceptions: true,
+      followRedirects: true,
+      headers: {
+        'ngrok-skip-browser-warning': 'true',
+        'User-Agent': 'GoogleAppsScript-HealthMonitor/1.0'
+      },
+      timeout: CONFIG.TIMEOUT_SECONDS * 1000
+    });
 
-/**
- * Runs automatically when the spreadsheet is opened
- */
-function onOpen() {
-  const ui = SpreadsheetApp.getUi();
-  ui.createMenu('Portfolio')
-    .addItem('Fetch Solana Portfolio', 'fetchSolanaPortfolio')
-    .addItem('Fetch EVM Portfolio', 'fetchEVMPortfolio')
-    .addToUi();
+    const statusCode = response.getResponseCode();
+    
+    if (statusCode === 200) {
+      const data = JSON.parse(response.getContentText());
+      
+      // Check if the response has the expected structure
+      if (data.status === 'ok') {
+        Logger.log('✓ API is healthy');
+        Logger.log(`Last update: ${data.last_update || 'Never'}`);
+        Logger.log(`Cached wallets: ${data.cached_wallets || 0}`);
+        return true;
+      } else {
+        Logger.log('✗ API returned unexpected status');
+        return false;
+      }
+    } else {
+      Logger.log(`✗ API returned status code: ${statusCode}`);
+      return false;
+    }
+    
+  } catch (error) {
+    Logger.log(`✗ Error checking API health: ${error.message}`);
+    return false;
+  }
 }
 
 /**
- * Unified Portfolio Fetcher for Google Sheets
- * 
- * This script fetches portfolio data from both Solana (Jupiter) and EVM (DeBank)
- * 
- * Setup:
- * 1. Open your Google Sheet
- * 2. Go to Extensions > Apps Script
- * 3. Paste this code
- * 4. Update the API_URL constant with your server URL
- * 5. Create two sheets: "solana_portfolio" and "EVM_portfolio"
- * 6. Put wallet addresses in cell B1 of each sheet
- * 7. Run the functions or use the custom menu
+ * Send alert email when API is down
  */
+function sendHealthAlertEmail(errorDetails) {
+  const subject = '🚨 Portfolio Scraper API - Service Down';
+  
+  const body = `
+The Portfolio Scraper API health check has failed.
 
-// Configuration
-const API_URL = "https://nondefensible-unbridled-zainab.ngrok-free.dev/portfolio";
+Time: ${new Date().toLocaleString()}
+API URL: ${CONFIG.API_HEALTH}
+
+Error Details:
+${errorDetails}
+
+Please check:
+1. Is the Flask server running?
+2. Is ngrok tunnel active?
+3. Are there any Chrome/scraper errors?
+
+This is an automated alert from your Google Apps Script health monitor.
+`;
+  
+  try {
+    MailApp.sendEmail({
+      to: CONFIG.ALERT_EMAIL,
+      subject: subject,
+      body: body
+    });
+    Logger.log(`Alert email sent to ${CONFIG.ALERT_EMAIL}`);
+  } catch (error) {
+    Logger.log(`Failed to send alert email: ${error.message}`);
+  }
+}
+
+
+
+
+
+/**
+ * Main health check function
+ * Run this on a time-based trigger (e.g., every 15 minutes)
+ */
+function monitorApiHealth() {
+  Logger.log('Starting API health check...');
+  
+  const result = checkApiHealth();
+  
+  if (!result.healthy) {
+    Logger.log('API health check failed. Service may be down or unreachable.');
+    
+    // Check if current time is within alert hours (08:00 - 22:00 Thailand time)
+    const now = new Date();
+    const thailandTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Bangkok' }));
+    const hour = thailandTime.getHours();
+    
+    if (hour >= 8 && hour < 22) {
+      Logger.log(`Sending alert (Thailand time: ${thailandTime.toLocaleTimeString()})`);
+      sendHealthAlertEmail(result.error);
+    } else {
+      Logger.log(`Alert suppressed - outside notification hours (Thailand time: ${thailandTime.toLocaleTimeString()})`);
+    }
+  }
+}
+
+
+
+function fetchSolanaStandardPortfolio() {
+
+  fetchSolanaPortfolio("solana_standard_portfolio");
+
+}
+
+function fetchSolanaSeekerPortfolio() {
+
+  fetchSolanaPortfolio("solana_seeker_portfolio");
+
+}
+
+function fetchSolanaHiddenPortfolio() {
+
+  fetchSolanaPortfolio("solana_portfolio");
+
+}
 
 /**
  * Fetches Solana portfolio data from the Flask API and writes it to the sheet
  */
-function fetchSolanaPortfolio() {
-  const SHEET_NAME = "solana_portfolio";
+function fetchSolanaPortfolio(sheet) {
+  const SHEET_NAME = sheet;
   
   try {
+    monitorApiHealth();
     Logger.log("=== Starting fetchSolanaPortfolio ===");
     
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -84,7 +180,7 @@ function fetchSolanaPortfolio() {
     Logger.log(`Fetching portfolio for wallet: ${trimmedAddress}`);
     
     // Call the Flask API
-    const url = `${API_URL}?address=${encodeURIComponent(trimmedAddress)}`;
+    const url = `${CONFIG.API_PORTFOLIO}?address=${encodeURIComponent(trimmedAddress)}`;
     Logger.log(`Full API URL: ${url}`);
     
     const startTime = new Date().getTime();
@@ -197,6 +293,25 @@ function fetchSolanaPortfolio() {
                 projectName,
                 sectionType,
                 "Farming",
+                asset.token,
+                asset.balance,
+                asset.yield || "",
+                asset.value
+              ]);
+            }
+          }
+        }
+
+        // Add this after the Farming section handler:
+        // Handle LiquidityPool section (same structure as Farming)
+        else if (sectionType === "LiquidityPool") {
+          if (section.assets) {
+            Logger.log(`      Found ${section.assets.length} liquidity pool assets`);
+            for (const asset of section.assets) {
+              dataRows.push([
+                projectName,
+                sectionType,
+                "LiquidityPool",
                 asset.token,
                 asset.balance,
                 asset.yield || "",
@@ -323,6 +438,7 @@ function fetchEVMPortfolio() {
   const SHEET_NAME = "EVM_portfolio";
   
   try {
+    monitorApiHealth();
     Logger.log("=== Starting fetchEVMPortfolio ===");
     
     const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
@@ -351,7 +467,7 @@ function fetchEVMPortfolio() {
     Logger.log(`Fetching portfolio for wallet: ${trimmedAddress}`);
     
     // Call the Flask API
-    const url = `${API_URL}?address=${encodeURIComponent(trimmedAddress)}`;
+    const url = `${CONFIG.API_PORTFOLIO}?address=${encodeURIComponent(trimmedAddress)}`;
     Logger.log(`Full API URL: ${url}`);
     
     const startTime = new Date().getTime();
@@ -593,7 +709,7 @@ function testAPIConnection() {
   try {
     Logger.log("=== Testing API Connection ===");
     
-    const healthUrl = API_URL.replace('/portfolio', '/health');
+    const healthUrl = CONFIG.API_PORTFOLIO.replace('/portfolio', '/health');
     Logger.log(`Health check URL: ${healthUrl}`);
     
     const response = UrlFetchApp.fetch(healthUrl, {
@@ -633,3 +749,5 @@ function testAPIConnection() {
     Logger.log(msg);
   }
 }
+
+
