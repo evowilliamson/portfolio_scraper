@@ -28,19 +28,43 @@ class PortfolioScheduler:
         self.scheduler = None
     
     def get_jupiter_scraper(self):
-        """Get or create Jupiter scraper instance"""
+        """Get or create Jupiter scraper instance with health check"""
+        # Check if existing scraper is alive
+        if self.jupiter_scraper is not None:
+            if not self.jupiter_scraper.is_driver_alive():
+                print("[Scheduler] ⚠️ Jupiter driver is stale, reconnecting...")
+                try:
+                    self.jupiter_scraper.cleanup()
+                except:
+                    pass
+                self.jupiter_scraper = None
+        
+        # Create new scraper if needed
         if self.jupiter_scraper is None:
             self.jupiter_scraper = JupiterScraper(debug_port=self.chrome_debug_port)
             if not self.jupiter_scraper.connect_to_chrome():
                 return None
+        
         return self.jupiter_scraper
     
     def get_rabby_scraper(self):
-        """Get or create Rabby scraper instance"""
+        """Get or create Rabby scraper instance with health check"""
+        # Check if existing scraper is alive
+        if self.rabby_scraper is not None:
+            if not self.rabby_scraper.is_driver_alive():
+                print("[Scheduler] ⚠️ Rabby driver is stale, reconnecting...")
+                try:
+                    self.rabby_scraper.cleanup()
+                except:
+                    pass
+                self.rabby_scraper = None
+        
+        # Create new scraper if needed
         if self.rabby_scraper is None:
             self.rabby_scraper = RabbyScraper(debug_port=self.chrome_debug_port)
             if not self.rabby_scraper.connect_to_chrome():
                 return None
+        
         return self.rabby_scraper
     
     def scrape_and_cache(self):

@@ -27,6 +27,17 @@ class JupiterScraper:
         self.user_data_dir = user_data_dir or os.path.expanduser('~/.chrome_jupiter_scraper')
         self.min_usd_value = 5  # Minimum USD value threshold
 
+    def is_driver_alive(self):
+        """Check if the driver is still responsive"""
+        if not self.driver:
+            return False
+        try:
+            # Try a simple command to check if driver is responsive
+            _ = self.driver.current_url
+            return True
+        except Exception:
+            return False
+    
     def connect_to_chrome(self):
         """Start Chrome with undetected-chromedriver for anti-detection"""
         print(f"[Jupiter] Starting Chrome with anti-detection...")
