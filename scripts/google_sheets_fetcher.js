@@ -102,7 +102,7 @@ function monitorApiHealth() {
   
   const result = checkApiHealth();
   
-  if (!result.healthy) {
+  if (!result) {
     Logger.log('API health check failed. Service may be down or unreachable.');
     
     // Check if current time is within alert hours (08:00 - 22:00 Thailand time)
