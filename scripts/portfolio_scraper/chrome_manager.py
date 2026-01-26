@@ -211,7 +211,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
             print("⚠️  IMPORTANT: CAPTCHA SOLVING")
             print("="*70)
             print("A Chrome window should appear shortly.")
-            print("When you see a captcha on Jupiter.ag or Rabby:")
+            print("When you see a captcha on Jupiter.ag or DeBank:")
             print("  1. Click the captcha checkbox")
             print("  2. Complete any image challenges")
             print("  3. Wait for the page to fully load")
@@ -250,7 +250,7 @@ def start_chrome_with_debug(debug_port, chrome_profile, copy_profile=True, start
                     if not headless:
                         print("\n💡 TIP: Leave the Chrome window open while the scraper runs.")
                         print("    You may need to solve captchas periodically.")
-                        print("    Your Rabby extension should be available in the browser.")
+                        print("    Your DeBank profile should be available in the browser.")
                     
                     return True
                 else:

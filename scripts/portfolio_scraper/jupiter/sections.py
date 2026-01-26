@@ -11,15 +11,23 @@ from .parsers import (
 )
 
 # Minimum USD value threshold
-MIN_USD_VALUE = 500
+MIN_USD_VALUE = 5
 
 def _get_primary_rows(section_elem):
-    """Return rows from the first tbody in the section table."""
+    """Return rows from ALL tbody elements in the section table."""
     table = section_elem.find_element(By.CSS_SELECTOR, "table")
     tbodies = table.find_elements(By.TAG_NAME, "tbody")
     if not tbodies:
         return []
-    return tbodies[0].find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+    
+    # Get rows from ALL tbodies, not just the first one
+    # Some assets (like those with APY badges) may be in separate tbody elements
+    all_rows = []
+    for tbody in tbodies:
+        rows = tbody.find_elements(By.CSS_SELECTOR, "tr.transition-colors")
+        all_rows.extend(rows)
+    
+    return all_rows
 
 
 def _parse_lending_rows(rows, target_list, balance_idx=1, yield_idx=3, value_idx=4):

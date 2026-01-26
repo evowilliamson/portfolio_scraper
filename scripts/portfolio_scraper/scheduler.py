@@ -7,7 +7,7 @@ import time
 import atexit
 from datetime import datetime
 from .jupiter_scraper import JupiterScraper
-from .rabby_scraper import RabbyScraper
+from .debank_scraper import DebankScraper
 from .utils import is_solana_address
 from .config import OUTPUT_DIR
 
@@ -24,7 +24,7 @@ class PortfolioScheduler:
         self.cached_portfolio_data = {}
         self.last_update_time = None
         self.jupiter_scraper = None
-        self.rabby_scraper = None
+        self.debank_scraper = None
         self.scheduler = None
     
     def get_jupiter_scraper(self):
@@ -47,25 +47,25 @@ class PortfolioScheduler:
         
         return self.jupiter_scraper
     
-    def get_rabby_scraper(self):
-        """Get or create Rabby scraper instance with health check"""
+    def get_debank_scraper(self):
+        """Get or create DeBank scraper instance with health check"""
         # Check if existing scraper is alive
-        if self.rabby_scraper is not None:
-            if not self.rabby_scraper.is_driver_alive():
-                print("[Scheduler] ⚠️ Rabby driver is stale, reconnecting...")
+        if self.debank_scraper is not None:
+            if not self.debank_scraper.is_driver_alive():
+                print("[Scheduler] ⚠️ DeBank driver is stale, reconnecting...")
                 try:
-                    self.rabby_scraper.cleanup()
+                    self.debank_scraper.cleanup()
                 except:
                     pass
-                self.rabby_scraper = None
+                self.debank_scraper = None
         
         # Create new scraper if needed
-        if self.rabby_scraper is None:
-            self.rabby_scraper = RabbyScraper(debug_port=self.chrome_debug_port)
-            if not self.rabby_scraper.connect_to_chrome():
+        if self.debank_scraper is None:
+            self.debank_scraper = DebankScraper(debug_port=self.chrome_debug_port)
+            if not self.debank_scraper.connect_to_chrome():
                 return None
         
-        return self.rabby_scraper
+        return self.debank_scraper
     
     def scrape_and_cache(self):
         """Background task: Scrape all configured wallets and cache results"""
@@ -74,14 +74,14 @@ class PortfolioScheduler:
         
         success_count = 0
         
-        # Scrape EVM addresses using Rabby (FIRST)
+        # Scrape EVM addresses using DeBank (FIRST)
         if self.evm_addresses:
-            rabby = self.get_rabby_scraper()
-            if rabby:
+            debank = self.get_debank_scraper()
+            if debank:
                 for idx, wallet_address in enumerate(self.evm_addresses, 1):
                     print(f"\n   [{idx}/{len(self.evm_addresses)}] Scraping EVM wallet: {wallet_address[:8]}...{wallet_address[-8:]}")
                     
-                    portfolio_data = rabby.scrape_portfolio(wallet_address)
+                    portfolio_data = debank.scrape_portfolio(wallet_address)
                     
                     if portfolio_data:
                         self.cached_portfolio_data[wallet_address] = portfolio_data
@@ -95,7 +95,7 @@ class PortfolioScheduler:
                     else:
                         print(f"      ✗ Scraping failed")
             else:
-                print(f"\n   ✗ Failed to initialize Rabby scraper")
+                print(f"\n   ✗ Failed to initialize DeBank scraper")
         
         # Scrape Solana addresses (SECOND)
         if self.solana_addresses:

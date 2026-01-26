@@ -8,7 +8,6 @@ import atexit
 from .config import (
     SOLANA_ADDRESSES, 
     EVM_ADDRESSES, 
-    RABBY_PASSWORD,
     SCRAPE_INTERVAL_MINUTES,
     CHROME_DEBUG_PORT,
     CHROME_PROFILE,
@@ -131,17 +130,17 @@ def run_app():
     # AUTOMATIC MODE: Each scraper starts its own Chrome
     # ===========================================================================
     # Jupiter scraper → starts Chrome with undetected-chromedriver
-    # Rabby scraper   → starts Chrome with undetected-chromedriver
+    # DeBank scraper  → starts Chrome with undetected-chromedriver
     #
     # No manual Chrome startup needed!
     # Profiles persist at:
     #   - ~/.chrome_jupiter_scraper (for Solana/Jupiter)
-    #   - ~/.chrome_rabby_scraper (for EVM/Rabby)
+    #   - ~/.chrome_debank_scraper (for EVM/DeBank)
     # ===========================================================================
     
     print("\n✓ Scrapers will start Chrome automatically with anti-detection")
     print("  → Jupiter: ~/.chrome_jupiter_scraper")
-    print("  → Rabby:   ~/.chrome_rabby_scraper")
+    print("  → DeBank:  ~/.chrome_debank_scraper")
     print()
     
     # Set up ngrok
