@@ -74,7 +74,29 @@ class PortfolioScheduler:
         
         success_count = 0
         
-        # Scrape EVM addresses using DeBank (FIRST)
+        # Scrape Solana addresses (FIRST)
+        if self.solana_addresses:
+            jupiter = self.get_jupiter_scraper()
+            if jupiter:
+                for idx, wallet_address in enumerate(self.solana_addresses, 1):
+                    print(f"\n   [{idx}/{len(self.solana_addresses)}] Scraping Solana wallet: {wallet_address[:8]}...{wallet_address[-8:]}")
+                    portfolio_data = jupiter.scrape_portfolio(wallet_address)
+                    
+                    if portfolio_data:
+                        self.cached_portfolio_data[wallet_address] = portfolio_data
+                        output_file = f"{OUTPUT_DIR}/solana_portfolio_{wallet_address[:8]}.json"
+                        with open(output_file, "w", encoding="utf-8") as f:
+                            json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
+                        
+                        projects_count = len(portfolio_data.get('projects', []))
+                        print(f"      ✓ Scraped successfully - {projects_count} projects")
+                        success_count += 1
+                    else:
+                        print(f"      ✗ Scraping failed")
+            else:
+                print(f"\n   ✗ Failed to initialize Jupiter scraper")
+        
+        # Scrape EVM addresses using DeBank (SECOND)
         if self.evm_addresses:
             debank = self.get_debank_scraper()
             if debank:
@@ -96,26 +118,6 @@ class PortfolioScheduler:
                         print(f"      ✗ Scraping failed")
             else:
                 print(f"\n   ✗ Failed to initialize DeBank scraper")
-        
-        # Scrape Solana addresses (SECOND)
-        if self.solana_addresses:
-            jupiter = self.get_jupiter_scraper()
-            if jupiter:
-                for idx, wallet_address in enumerate(self.solana_addresses, 1):
-                    print(f"\n   [{idx}/{len(self.solana_addresses)}] Scraping Solana wallet: {wallet_address[:8]}...{wallet_address[-8:]}")
-                    portfolio_data = jupiter.scrape_portfolio(wallet_address)
-                    
-                    if portfolio_data:
-                        self.cached_portfolio_data[wallet_address] = portfolio_data
-                        output_file = f"{OUTPUT_DIR}/solana_portfolio_{wallet_address[:8]}.json"
-                        with open(output_file, "w", encoding="utf-8") as f:
-                            json.dump(portfolio_data, f, indent=2, ensure_ascii=False)
-                        
-                        projects_count = len(portfolio_data.get('projects', []))
-                        print(f"      ✓ Scraped successfully - {projects_count} projects")
-                        success_count += 1
-                    else:
-                        print(f"      ✗ Scraping failed")
         
         if success_count > 0:
             self.last_update_time = datetime.now()

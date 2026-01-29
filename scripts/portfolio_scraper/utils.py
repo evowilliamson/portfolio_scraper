@@ -1,8 +1,12 @@
 """
 Utility functions for the portfolio scraper
 """
+import os
+import re
 import socket
+import subprocess
 import time
+import shutil
 import psutil
 
 
@@ -45,3 +49,44 @@ def kill_all_chrome_processes():
     else:
         print("   No Chrome processes found")
     return killed
+
+
+def get_chrome_major_version():
+    """Return installed Chrome major version, or None if unknown."""
+    candidates = [
+        shutil.which('google-chrome'),
+        shutil.which('google-chrome-stable'),
+        shutil.which('chromium-browser'),
+        shutil.which('chromium'),
+        '/usr/bin/google-chrome',
+        '/usr/bin/google-chrome-stable',
+        '/opt/google/chrome/chrome',
+    ]
+    chrome_binary = None
+    for candidate in candidates:
+        if candidate and os.path.exists(candidate) and os.access(candidate, os.X_OK):
+            chrome_binary = candidate
+            break
+
+    if not chrome_binary:
+        return None
+
+    try:
+        result = subprocess.run(
+            [chrome_binary, '--version'],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+    except Exception:
+        return None
+
+    version_text = (result.stdout or result.stderr or '').strip()
+    match = re.search(r'(\d+)\.', version_text)
+    if not match:
+        return None
+
+    try:
+        return int(match.group(1))
+    except ValueError:
+        return None

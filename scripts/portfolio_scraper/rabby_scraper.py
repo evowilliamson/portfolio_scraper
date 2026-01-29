@@ -1,7 +1,9 @@
 """
 Rabby (EVM) Portfolio Scraper with Anti-Detection - Multi-Wallet Support
 """
-import undetected_chromedriver as uc
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -34,28 +36,41 @@ class RabbyScraper:
             return False
     
     def connect_to_chrome(self):
-        """Start Chrome with undetected-chromedriver for anti-detection"""
-        print("[Rabby] Starting Chrome with anti-detection...")
+        """Start Chrome with standard Selenium (Rabby extension doesn't need anti-detection)"""
+        print("[Rabby] Starting Chrome...")
         print(f"[Rabby] Profile directory: {self.user_data_dir}")
         
         try:
-            # undetected-chromedriver options
-            options = uc.ChromeOptions()
+            # Standard Chrome options with flags to bypass Rabby's security restrictions
+            options = Options()
             options.add_argument(f'--user-data-dir={self.user_data_dir}')
             options.add_argument('--no-first-run')
             options.add_argument('--no-default-browser-check')
-            options.add_argument('--disable-blink-features=AutomationControlled')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('--disable-software-rasterizer')
             
-            # Start Chrome with anti-detection
-            # Let undetected-chromedriver auto-detect Chrome version
-            self.driver = uc.Chrome(
-                options=options,
-                use_subprocess=False  # Avoid port conflicts
-            )
+            # Disable web security to bypass Rabby's ShadowRoot restrictions
+            options.add_argument('--disable-web-security')
+            options.add_argument('--disable-site-isolation-trials')
+            options.add_argument('--disable-features=IsolateOrigins,site-per-process')
             
-            print(f"[Rabby] ✓ Chrome started with anti-detection")
+            # Allow access to extension content
+            options.add_experimental_option('excludeSwitches', ['enable-automation'])
+            options.add_experimental_option('useAutomationExtension', False)
+            
+            # Use standard ChromeDriver
+            self.driver = webdriver.Chrome(options=options)
+            
+            # Inject script to bypass Rabby's restrictions
+            self.driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
+                'source': '''
+                    Object.defineProperty(navigator, 'webdriver', {
+                        get: () => undefined
+                    });
+                '''
+            })
+            
+            print(f"[Rabby] ✓ Chrome started")
             print(f"[Rabby] ℹ Profile persists at: {self.user_data_dir}")
             print(f"[Rabby] ℹ Install Rabby extension in this Chrome if not already installed")
             return True
@@ -92,37 +107,58 @@ class RabbyScraper:
         print("[Rabby] Checking for unlock screen...")
         
         try:
-            # Check if password input is present
-            password_input = WebDriverWait(self.driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, "input#password"))
-            )
+            # Wait for page to load
+            time.sleep(3)
+            
+            # Use JavaScript to check if password input exists (bypass Rabby's DOM restrictions)
+            password_exists = self.driver.execute_script("""
+                return document.querySelector('input#password') !== null;
+            """)
+            
+            if not password_exists:
+                # No unlock screen present, already unlocked
+                print("[Rabby] No unlock screen detected (already unlocked)")
+                return True
             
             print("[Rabby] Unlock screen detected, entering password...")
             
-            # Enter password
-            password_input.clear()
-            password_input.send_keys(self.password)
-            time.sleep(1)
+            # Use JavaScript to enter password and click unlock button
+            success = self.driver.execute_script("""
+                const passwordInput = document.querySelector('input#password');
+                const unlockButton = document.querySelector('button[type="submit"]');
+                
+                if (!passwordInput || !unlockButton) {
+                    return false;
+                }
+                
+                passwordInput.value = arguments[0];
+                passwordInput.dispatchEvent(new Event('input', { bubbles: true }));
+                passwordInput.dispatchEvent(new Event('change', { bubbles: true }));
+                
+                unlockButton.click();
+                return true;
+            """, self.password)
             
-            # Click unlock button
-            unlock_button = self.driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-            unlock_button.click()
+            if not success:
+                print("[Rabby] ✗ Failed to find unlock elements")
+                return False
             
             print("[Rabby] ✓ Password entered, waiting for unlock...")
             
-            # Wait for unlock to complete (password field should disappear)
-            WebDriverWait(self.driver, 10).until(
-                EC.invisibility_of_element_located((By.CSS_SELECTOR, "input#password"))
-            )
+            # Wait for unlock to complete (check if password field disappears)
+            for _ in range(10):
+                time.sleep(1)
+                still_locked = self.driver.execute_script("""
+                    return document.querySelector('input#password') !== null;
+                """)
+                if not still_locked:
+                    print("[Rabby] ✓ Successfully unlocked!")
+                    time.sleep(2)  # Give it a moment to fully load
+                    return True
             
-            print("[Rabby] ✓ Successfully unlocked!")
-            time.sleep(2)  # Give it a moment to fully load
-            return True
+            print("[Rabby] ✗ Unlock timeout")
+            return False
             
-        except TimeoutException:
-            # No unlock screen present, already unlocked
-            print("[Rabby] No unlock screen detected (already unlocked)")
-            return True
         except Exception as e:
             print(f"[Rabby] ✗ Error handling unlock screen: {e}")
             import traceback

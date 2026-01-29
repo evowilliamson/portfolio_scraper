@@ -9,6 +9,7 @@ from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import time
 import os
 from datetime import datetime
+from .utils import get_chrome_major_version
 
 from .jupiter.sections import (
     scrape_farming_section,
@@ -54,11 +55,20 @@ class JupiterScraper:
             options.add_argument('--disable-software-rasterizer')
             
             # Start Chrome with anti-detection
-            # Let undetected-chromedriver auto-detect Chrome version
-            self.driver = uc.Chrome(
-                options=options,
-                use_subprocess=False  # Avoid port conflicts
-            )
+            version_main = get_chrome_major_version()
+            if version_main:
+                print(f"[Jupiter] ℹ Using detected Chrome major version: {version_main}")
+                self.driver = uc.Chrome(
+                    options=options,
+                    version_main=version_main,
+                    use_subprocess=False  # Avoid port conflicts
+                )
+            else:
+                print("[Jupiter] ℹ Chrome version unknown; using auto-detection")
+                self.driver = uc.Chrome(
+                    options=options,
+                    use_subprocess=False  # Avoid port conflicts
+                )
             
             print(f"[Jupiter] ✓ Chrome started with anti-detection")
             print(f"[Jupiter] ℹ Profile persists at: {self.user_data_dir}")
