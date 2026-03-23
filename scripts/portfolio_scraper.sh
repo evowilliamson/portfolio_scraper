@@ -21,4 +21,6 @@ echo "Running portfolio_scrape_once.py..."
 python3 portfolio_scrape_once.py
 
 # Deactivate virtual environment
-deactivate
+if command -v deactivate >/dev/null 2>&1; then
+    deactivate
+fi

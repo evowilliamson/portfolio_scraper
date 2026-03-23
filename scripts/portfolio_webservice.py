@@ -8,9 +8,12 @@ from pyngrok import ngrok
 import os
 import json
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Get feeds directory
 FEEDS_DIR = Path(__file__).resolve().parent.parent / 'feeds'
+ENV_PATH = Path(__file__).resolve().parent.parent / '.env'
+load_dotenv(dotenv_path=ENV_PATH)
 
 app = Flask(__name__)
 
@@ -36,7 +39,8 @@ def setup_ngrok(port):
         except:
             pass
         
-        public_url = ngrok.connect(port, bind_tls=True)
+        tunnel = ngrok.connect(port, bind_tls=True)
+        public_url = tunnel.public_url if hasattr(tunnel, "public_url") else str(tunnel)
         print("="*70)
         print("🌐 NGROK TUNNEL ACTIVE")
         print("="*70)

@@ -1,6 +1,10 @@
 """
 Jupiter (Solana) Portfolio Scraper with Anti-Detection
 """
+from .compat import ensure_distutils_module
+
+ensure_distutils_module()
+
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait

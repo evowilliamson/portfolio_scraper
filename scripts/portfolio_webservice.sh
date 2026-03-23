@@ -3,22 +3,46 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$SCRIPT_DIR"
 
-# Create virtual environment in parent directory if it doesn't exist
-if [ ! -d "../venv" ]; then
-    echo "Creating virtual environment in parent directory..."
-    python3 -m venv ../venv
+# Check whether a venv folder is actually usable
+is_valid_venv() {
+    local dir="$1"
+    [[ -x "$dir/bin/python" && -f "$dir/bin/activate" ]]
+}
+
+# Resolve virtual environment location.
+# Priority:
+#   1) $VENV_DIR if provided
+#   2) scripts/venv
+#   3) project-root venv
+#   4) create scripts/venv
+if [[ -n "${VENV_DIR:-}" ]]; then
+    if ! is_valid_venv "$VENV_DIR"; then
+        echo "Provided VENV_DIR is invalid: $VENV_DIR"
+        exit 1
+    fi
+else
+    if is_valid_venv "$SCRIPT_DIR/venv"; then
+        VENV_DIR="$SCRIPT_DIR/venv"
+    elif is_valid_venv "$PROJECT_DIR/venv"; then
+        VENV_DIR="$PROJECT_DIR/venv"
+    else
+        VENV_DIR="$SCRIPT_DIR/venv"
+        echo "Creating virtual environment at: $VENV_DIR"
+        python3 -m venv "$VENV_DIR"
+    fi
 fi
 
-# Activate virtual environment from parent directory
-echo "Activating virtual environment..."
-source ../venv/bin/activate
+echo "Using virtual environment: $VENV_DIR"
+PYTHON_BIN="$VENV_DIR/bin/python"
+PIP_BIN="$VENV_DIR/bin/pip"
 
 # Install dependencies if requirements.txt exists
-if [ -f "../requirements.txt" ]; then
+if [ -f "$PROJECT_DIR/requirements.txt" ]; then
     echo "Installing dependencies..."
-    pip install -r ../requirements.txt
+    "$PIP_BIN" install -r "$PROJECT_DIR/requirements.txt"
 fi
 
 FLASK_HOST="${FLASK_HOST:-0.0.0.0}"
@@ -45,7 +69,7 @@ stop_flask() {
 trap stop_flask EXIT
 
 echo "Starting Flask webservice..."
-python3 portfolio_webservice.py &
+"$PYTHON_BIN" "$SCRIPT_DIR/portfolio_webservice.py" &
 FLASK_PID=$!
 
 echo "Waiting for Flask to start (health check)..."
@@ -68,8 +92,5 @@ sleep 600
 echo ""
 echo "10 minutes elapsed. Shutting down gracefully..."
 stop_flask
-
-# Deactivate virtual environment
-deactivate
 
 echo "✓ Webservice stopped cleanly."
